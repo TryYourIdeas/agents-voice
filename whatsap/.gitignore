@@ -1,0 +1,10 @@
+node_modules
+.env
+.vscode/
+.wwebjs_cache/
+devices/*/session/
+logs*.txt
+research/
+.superpowers/
+devices
+.env

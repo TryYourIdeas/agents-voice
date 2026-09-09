@@ -1,0 +1,14 @@
+# Root build context is only used by llama-server/Dockerfile (CPU) and
+# llama-server/Dockerfile.gpu (GPU), which need llama/ or llama-gpu/,
+# model-qwen3.5/, and start-llama-server.sh or start-llama-server-gpu.sh.
+# Everything else here would otherwise be sent to the Docker daemon as build
+# context for no reason.
+*
+!llama/
+!llama/**
+!llama-gpu/
+!llama-gpu/**
+!model-qwen3.5/
+!model-qwen3.5/**
+!start-llama-server.sh
+!start-llama-server-gpu.sh

@@ -1,0 +1,37 @@
+# Standalone compose file for running/testing this service on its own —
+# see ../docker-compose-whatsap.yml for how it's wired into the whatsap
+# stack as a consumer.
+services:
+  plantuml-renderer:
+    build: .
+    ports:
+      - "3000:3000"
+    environment:
+      PORT: 3000
+      PLANTUML_TIMEOUT_MS: 10000
+      MAX_DIAGRAM_SIZE: 1048576
+      MAX_CONCURRENT_RENDERS: 2
+      LOG_LEVEL: info
+      CORS_ORIGIN: "*" # development default — see README's CORS section for production guidance
+    # Recommended resource limits (see README's Security section) — not
+    # mandatory for every deployment, adjust to your environment.
+    deploy:
+      resources:
+        limits:
+          cpus: "1"
+          memory: 512M
+    pids_limit: 128
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    read_only: true
+    tmpfs:
+      - /tmp
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    restart: unless-stopped

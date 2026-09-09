@@ -1,0 +1,12 @@
+node_modules
+.env
+.env.*
+.git
+.gitignore
+.vscode
+.wwebjs_cache
+devices
+new-devices
+logs*.txt
+*.md
+!README.md

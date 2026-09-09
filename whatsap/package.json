@@ -1,0 +1,35 @@
+{
+  "name": "wwebjs-bot",
+  "version": "1.0.0",
+  "description": "",
+  "main": "coordinator.ts",
+  "type": "module",
+  "scripts": {
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "start": "node coordinator.ts"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "packageManager": "pnpm@10.30.0",
+  "dependencies": {
+    "@langchain/anthropic": "^1.5.9",
+    "@langchain/core": "^1.2.9",
+    "@langchain/langgraph": "^1.3.0",
+    "@langchain/ollama": "^1.2.7",
+    "@langchain/tavily": "^1.2.0",
+    "cron-parser": "^5.10.0",
+    "deepagents": "^1.10.2",
+    "dotenv": "^17.4.2",
+    "langchain": "^1.4.0",
+    "qrcode": "^1.5.4",
+    "qrcode-terminal": "^0.12.0",
+    "whatsapp-web.js": "^1.34.7",
+    "zod": "^4.3.6"
+  },
+  "devDependencies": {
+    "@types/qrcode-terminal": "^0.12.2",
+    "vitest": "^5.0.0"
+  }
+}

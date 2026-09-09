@@ -1,0 +1,15 @@
+node_modules
+dist
+coverage
+test
+*.test.ts
+.git
+.gitignore
+.env
+.env.*
+README.md
+LICENSE
+docker-compose.yml
+Dockerfile
+.dockerignore
+npm-debug.log*

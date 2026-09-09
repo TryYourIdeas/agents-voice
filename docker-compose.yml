@@ -1,0 +1,125 @@
+services:
+  tts:
+    build: ./text-to-speech
+    image: qwen3-tts:latest
+    ports:
+      - "8000:8000"
+    volumes:
+      # Persist downloaded model weights between runs.
+      - ./models:/models
+      # Persist cloned voices (raw audio + ref_text). Replayed on startup.
+      - ./voices:/voices
+    environment:
+      QWEN_TTS_MODEL: Qwen/Qwen3-TTS-12Hz-1.7B-CustomVoice
+      QWEN_TTS_DEVICE: cuda:0
+      QWEN_TTS_DTYPE: bfloat16
+      QWEN_TTS_ATTN: sdpa
+      # Voice cloning loads a second ~1.7B model (QWEN_TTS_BASE_MODEL) alongside
+      # the CustomVoice one above. Disabled by default here because this GPU
+      # doesn't have enough VRAM to hold both TTS models plus an STT model at
+      # the same time. Set to "true" to re-enable cloning (frees the STT
+      # services' headroom back up, so don't run them concurrently in that case).
+      QWEN_TTS_ENABLE_CLONE: "false"
+      # HUGGING_FACE_HUB_TOKEN: ${HF_TOKEN}
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:8000/health').status==200 else 1)"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 300s
+
+  stt:
+    build: ./whisper-speech-to-text
+    image: whisper-stt:latest
+    # Opt-in only: this 12GB-class GPU can't hold tts + qwen-stt + stt at once
+    # (qwen-stt alone uses ~4.6GB, tts ~3.5GB even with cloning disabled). Start
+    # it explicitly with `docker compose --profile whisper up` and stop qwen-stt
+    # first if you want Whisper instead of Qwen3-ASR as your STT engine.
+    profiles: ["whisper"]
+    ports:
+      - "8001:8001"
+    volumes:
+      - ./models:/models
+    environment:
+      WHISPER_MODEL: openai/whisper-large-v3-turbo
+      WHISPER_DEVICE: cuda:0
+      WHISPER_ATTN: sdpa
+      WHISPER_CHUNK_LENGTH_S: "30"
+      WHISPER_BATCH_SIZE: "8"
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:8001/health').status==200 else 1)"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 300s
+
+  qwen-stt:
+    build: ./qwen-speech-to-text
+    image: qwen3-asr-stt:latest
+    ports:
+      - "8002:8002"
+    volumes:
+      - ./models:/models
+    environment:
+      QWEN_ASR_MODEL: Qwen/Qwen3-ASR-1.7B
+      QWEN_ASR_DEVICE: cuda:0
+      QWEN_ASR_DTYPE: bfloat16
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:8002/health').status==200 else 1)"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 300s
+
+  llama-server:
+    build:
+      context: .
+      dockerfile: llama-server/Dockerfile
+    image: llama-server-qwen3.5:latest
+    ports:
+      - "5050:5050"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5050/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 60s
+
+  ui:
+    build: ./ui
+    image: agents-voice-ui:latest
+    ports:
+      - "3000:3000"
+    environment:
+      # Maps to runtimeConfig.{ttsUrl,sttUrl,qwenSttUrl} in nuxt.config.ts (Nuxt 3 NUXT_* override).
+      NUXT_TTS_URL: http://tts:8000
+      NUXT_STT_URL: http://stt:8001
+      NUXT_QWEN_STT_URL: http://qwen-stt:8002
+    depends_on:
+      - tts
+      - qwen-stt
+      # stt (Whisper) is opt-in (see its `profiles` above) and intentionally not
+      # listed here — `docker compose up` must work without it. If you start it
+      # via `--profile whisper`, the ui container can still reach it at
+      # NUXT_STT_URL below; it just won't be waited on at startup.

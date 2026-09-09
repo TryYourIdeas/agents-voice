@@ -1,0 +1,17 @@
+@startuml
+package "Client" {
+  [Web Browser]
+}
+package "Backend" {
+  [API Gateway]
+  [Auth Service]
+  [Render Service]
+  database "Database" {
+    [Postgres]
+  }
+}
+[Web Browser] --> [API Gateway]
+[API Gateway] --> [Auth Service]
+[API Gateway] --> [Render Service]
+[Render Service] --> [Postgres]
+@enduml

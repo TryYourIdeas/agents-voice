@@ -1,0 +1,489 @@
+openapi: 3.0.3
+info:
+  title: agents-voice APIs
+  version: "1.0.0"
+  description: >
+    Combined OpenAPI description of the three backend services in this repo:
+    text-to-speech (Qwen3-TTS), whisper-speech-to-text (Whisper large-v3-turbo),
+    and qwen-speech-to-text (Qwen3-ASR).
+
+
+    Each service is an independent FastAPI app that listens at its own root
+    (e.g. `GET /health`, `POST /stt`). To keep this single combined document
+    unambiguous, every path below is prefixed with the service name
+    (`/text-to-speech/...`, `/whisper-speech-to-text/...`,
+    `/qwen-speech-to-text/...`) and each operation pins itself to that
+    service's `servers` entry. When calling a service directly, drop the
+    prefix — e.g. `/whisper-speech-to-text/stt` documented here is actually
+    served as `POST /stt` on the `whisper-speech-to-text` server
+    (http://localhost:8001/stt).
+
+servers:
+  - url: http://localhost:8000
+    description: text-to-speech (Qwen3-TTS)
+  - url: http://localhost:8001
+    description: whisper-speech-to-text (Whisper large-v3-turbo)
+  - url: http://localhost:8002
+    description: qwen-speech-to-text (Qwen3-ASR-1.7B)
+
+tags:
+  - name: text-to-speech
+    description: Qwen3-TTS synthesis and voice cloning (port 8000).
+  - name: whisper-speech-to-text
+    description: Whisper large-v3-turbo transcription/translation (port 8001).
+  - name: qwen-speech-to-text
+    description: Qwen3-ASR transcription (port 8002).
+
+paths:
+  /text-to-speech/health:
+    servers:
+      - url: http://localhost:8000
+    get:
+      tags: [text-to-speech]
+      summary: Health/readiness check
+      operationId: ttsHealth
+      responses:
+        "200":
+          description: Service status.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TtsHealth"
+
+  /text-to-speech/voices:
+    servers:
+      - url: http://localhost:8000
+    get:
+      tags: [text-to-speech]
+      summary: List preset speakers, cloned voices, and supported languages
+      operationId: listVoices
+      responses:
+        "200":
+          description: Voice/language catalog.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VoiceList"
+
+  /text-to-speech/tts:
+    servers:
+      - url: http://localhost:8000
+    post:
+      tags: [text-to-speech]
+      summary: Synthesize speech from text
+      operationId: synthesize
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TTSRequest"
+      responses:
+        "200":
+          description: Synthesized audio.
+          headers:
+            X-Sample-Rate:
+              description: Sample rate (Hz) of the returned WAV audio.
+              schema:
+                type: string
+          content:
+            audio/wav:
+              schema:
+                type: string
+                format: binary
+        "400":
+          description: Unsupported language or unknown speaker.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "500":
+          description: Synthesis failed.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "503":
+          description: Required model not loaded yet.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /text-to-speech/voices/clone:
+    servers:
+      - url: http://localhost:8000
+    post:
+      tags: [text-to-speech]
+      summary: Clone a new voice from reference audio
+      operationId: cloneVoice
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [audio, ref_text]
+              properties:
+                audio:
+                  type: string
+                  format: binary
+                  description: Reference speech (~3-10s), any ffmpeg-decodable format.
+                ref_text:
+                  type: string
+                  minLength: 1
+                  description: Exact transcript of the reference audio.
+                voice_id:
+                  type: string
+                  pattern: "^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$"
+                  description: Optional custom id; auto-generated (clone-xxxxxxxx) if omitted. Cannot match a preset speaker name.
+      responses:
+        "200":
+          description: Voice cloned and registered.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  voice_id:
+                    type: string
+                  ref_text:
+                    type: string
+        "400":
+          description: Invalid/reserved voice_id, empty upload, or reference audio too short.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "500":
+          description: Clone prompt creation or persistence failed.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "503":
+          description: Voice cloning disabled or clone model not loaded.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /text-to-speech/voices/{voice_id}:
+    servers:
+      - url: http://localhost:8000
+    delete:
+      tags: [text-to-speech]
+      summary: Delete a cloned voice
+      operationId: deleteVoice
+      parameters:
+        - name: voice_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Voice deleted.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  voice_id:
+                    type: string
+                  deleted:
+                    type: boolean
+        "400":
+          description: Invalid voice_id format.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "404":
+          description: No such cloned voice.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /whisper-speech-to-text/health:
+    servers:
+      - url: http://localhost:8001
+    get:
+      tags: [whisper-speech-to-text]
+      summary: Health/readiness check
+      operationId: whisperHealth
+      responses:
+        "200":
+          description: Service status.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SttHealth"
+
+  /whisper-speech-to-text/stt:
+    servers:
+      - url: http://localhost:8001
+    post:
+      tags: [whisper-speech-to-text]
+      summary: Transcribe or translate speech (Whisper)
+      operationId: whisperTranscribe
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [audio]
+              properties:
+                audio:
+                  type: string
+                  format: binary
+                  description: Audio to transcribe, any ffmpeg-decodable format (>= ~250ms).
+                language:
+                  type: string
+                  nullable: true
+                  description: Lowercase language name (e.g. "english"), or omitted/"auto" for auto-detect.
+                task:
+                  type: string
+                  enum: [transcribe, translate]
+                  default: transcribe
+                  description: "translate always targets English."
+                return_timestamps:
+                  type: boolean
+                  default: false
+      responses:
+        "200":
+          description: Transcription result.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SttResult"
+        "400":
+          description: Invalid task, empty upload, audio too short, or decode failure.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "500":
+          description: Transcription failed.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "503":
+          description: Model not loaded.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /qwen-speech-to-text/health:
+    servers:
+      - url: http://localhost:8002
+    get:
+      tags: [qwen-speech-to-text]
+      summary: Health/readiness check
+      operationId: qwenHealth
+      responses:
+        "200":
+          description: Service status.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SttHealth"
+
+  /qwen-speech-to-text/stt:
+    servers:
+      - url: http://localhost:8002
+    post:
+      tags: [qwen-speech-to-text]
+      summary: Transcribe speech (Qwen3-ASR)
+      operationId: qwenTranscribe
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [audio]
+              properties:
+                audio:
+                  type: string
+                  format: binary
+                  description: Audio to transcribe, any ffmpeg-decodable format (>= ~250ms).
+                language:
+                  type: string
+                  default: Auto
+                  description: >
+                    Full language name (e.g. "English", "Chinese", "Cantonese"),
+                    case-insensitive (normalized to title case server-side), or
+                    "Auto" for automatic language identification.
+                  enum:
+                    - Auto
+                    - Chinese
+                    - English
+                    - Cantonese
+                    - Arabic
+                    - German
+                    - French
+                    - Spanish
+                    - Portuguese
+                    - Indonesian
+                    - Italian
+                    - Korean
+                    - Russian
+                    - Thai
+                    - Vietnamese
+                    - Japanese
+                    - Turkish
+                    - Hindi
+                    - Malay
+                    - Dutch
+                    - Swedish
+                    - Danish
+                    - Finnish
+                    - Polish
+                    - Czech
+                    - Filipino
+                    - Persian
+                    - Greek
+                    - Hungarian
+                    - Macedonian
+                    - Romanian
+                task:
+                  type: string
+                  enum: [transcribe]
+                  default: transcribe
+                  description: Only "transcribe" is supported; Qwen3-ASR has no translate mode.
+                return_timestamps:
+                  type: boolean
+                  default: false
+      responses:
+        "200":
+          description: Transcription result.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SttResult"
+        "400":
+          description: Task other than transcribe, unsupported language, empty upload, audio too short, or decode failure.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "500":
+          description: Transcription failed.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "503":
+          description: Model not loaded.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+components:
+  schemas:
+    Error:
+      type: object
+      properties:
+        detail:
+          type: string
+
+    TtsHealth:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [ok, loading]
+        custom_model:
+          type: string
+        base_model:
+          type: string
+          nullable: true
+        device:
+          type: string
+        dtype:
+          type: string
+        cloned_voices:
+          type: integer
+
+    SttHealth:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [ok, loading]
+        model:
+          type: string
+        device:
+          type: string
+
+    VoiceList:
+      type: object
+      properties:
+        speakers:
+          type: array
+          items:
+            type: string
+          example: [Aiden, Dylan, Eric, Ono_Anna, Ryan, Serena, Sohee, Uncle_Fu, Vivian]
+        cloned:
+          type: array
+          items:
+            type: string
+        languages:
+          type: array
+          items:
+            type: string
+          example: [Auto, Chinese, English, French, German, Italian, Japanese, Korean, Portuguese, Russian, Spanish]
+        clone_enabled:
+          type: boolean
+
+    TTSRequest:
+      type: object
+      required: [text]
+      properties:
+        text:
+          type: string
+          minLength: 1
+          maxLength: 4000
+        language:
+          type: string
+          default: Auto
+          enum: [Auto, Chinese, English, Japanese, Korean, German, French, Russian, Portuguese, Spanish, Italian]
+        speaker:
+          type: string
+          default: Ryan
+          description: A preset speaker name or a cloned voice_id.
+        instruct:
+          type: string
+          default: ""
+          description: Optional free-text style/emotion instruction (applies to preset speakers).
+
+    SttResult:
+      type: object
+      properties:
+        text:
+          type: string
+        task:
+          type: string
+        language:
+          type: string
+          description: Present when an explicit language was used/detected.
+        chunks:
+          type: array
+          description: Present only when return_timestamps=true.
+          items:
+            type: object
+            properties:
+              text:
+                type: string
+              timestamp:
+                type: array
+                minItems: 2
+                maxItems: 2
+                items:
+                  type: number

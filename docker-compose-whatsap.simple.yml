@@ -1,0 +1,66 @@
+# Standalone stack for the WhatsApp bot: `whatsap` (the LangChain/Anthropic
+# agent bridged to WhatsApp Web) plus `llama-server` (local OpenAI/Ollama-
+# compatible inference, exposed at :5050 for future local-model wiring; the
+# agent itself talks to the real Anthropic API by default via ANTHROPIC_*).
+#
+# llama-server here builds from llama-server/Dockerfile.gpu (the GPU-enabled
+# variant, using llama-gpu/'s CUDA-linked binaries) rather than the CPU-only
+# llama-server/Dockerfile used by the root docker-compose.yml — see that
+# Dockerfile.gpu for the CUDA runtime version it needs. This adds GPU VRAM
+# usage on top of whatever the main docker-compose.yml's tts/stt/qwen-stt
+# services are already using if run concurrently on the same GPU — see
+# docs/user-guides/config.md's GPU memory budget notes.
+#
+# Usage:
+#   docker compose -f docker-compose-whatsap.yml up --build
+#
+# First run needs an interactive terminal to scan the WhatsApp Web QR code:
+#   docker compose -f docker-compose-whatsap.yml run --rm whatsap
+# (or `up` in the foreground, not detached, and watch the logs). The
+# authenticated session then persists in ./whatsap/session across restarts.
+#
+# `name:` gives this stack its own Compose project so it won't collide with
+# containers started from the default docker-compose.yml.
+name: agents-voice-whatsap
+
+services:
+  whatsap:
+    build: ./whatsap
+    image: agents-voice-whatsap:latest
+    env_file:
+      - ./.env.whatsap-llama
+    volumes:
+      # Persist the authenticated WhatsApp Web session (LocalAuth credentials)
+      # across container restarts — without this, every restart requires
+      # re-scanning the QR code.
+      - ./whatsap/session:/app/session
+      # Append-only raw-event logs (contains message bodies/sender metadata).
+      - ./whatsap/logs.txt:/app/logs.txt
+    depends_on:
+      - llama-server
+    # QR code login (first run) is printed to stdout and needs a TTY.
+    stdin_open: true
+    tty: true
+    restart: unless-stopped
+
+  llama-server:
+    build:
+      context: .
+      dockerfile: llama-server/Dockerfile.gpu
+    image: llama-server-qwen3.5-gpu:latest
+    ports:
+      - "5050:5050"
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5050/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 60s
+    restart: unless-stopped

@@ -1,0 +1,52 @@
+# GPU-enabled variant of llama-server/Dockerfile. Build context is the repo
+# root (see docker-compose-whatsap.yml's `context: .`), because it packages
+# root-level artifacts that aren't inside llama-server/ itself: llama-gpu/
+# (prebuilt CUDA-linked llama.cpp binaries), model-qwen3.5/ (the GGUF
+# weights), and start-llama-server-gpu.sh (the CMD, run via `sh` since it has
+# no shebang). Root .dockerignore allowlists llama-gpu/ and this script
+# alongside the CPU build's llama/ and start-llama-server.sh.
+#
+# llama-gpu/llama-server is dynamically linked against libcudart.so.13 /
+# libcublas.so.13 / libcublasLt.so.13 (CUDA 13.x) and libcuda.so.1 (the host
+# NVIDIA driver's user-mode library, injected by nvidia-container-toolkit at
+# container start, not part of this image) — confirmed via `ldd`.
+#
+# Two-stage build: the `cuda` stage only exists to harvest those three CUDA
+# runtime/cuBLAS .so files from NVIDIA's official image. The final stage is
+# debian:trixie-slim, NOT an nvidia/cuda *-ubuntu24.04* base — this
+# llama-server binary needs OPENSSL_3.3 symbols (same reason
+# llama-server/Dockerfile, the CPU build, uses trixie over bookworm), and
+# Ubuntu 24.04's OpenSSL (3.0.13) predates that; no nvidia/cuda tag exists on
+# a new-enough Debian/Ubuntu base to satisfy it directly.
+FROM nvidia/cuda:13.0.2-runtime-ubuntu24.04 AS cuda
+
+FROM debian:trixie-slim
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        libssl3 \
+        libgomp1 \
+        zlib1g \
+        libzstd1 \
+        ca-certificates \
+        curl \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY --from=cuda /usr/local/cuda-13.0/targets/x86_64-linux/lib/libcudart.so.13 \
+                 /usr/local/cuda-13.0/targets/x86_64-linux/lib/libcublas.so.13 \
+                 /usr/local/cuda-13.0/targets/x86_64-linux/lib/libcublasLt.so.13 \
+                 /usr/local/cuda/lib/
+ENV LD_LIBRARY_PATH=/usr/local/cuda/lib
+
+WORKDIR /app
+
+COPY llama-gpu/ ./llama-gpu/
+COPY model-qwen3.5/ ./model-qwen3.5/
+COPY start-llama-server-gpu.sh .
+
+RUN chmod +x start-llama-server-gpu.sh llama-gpu/llama-server
+
+EXPOSE 5050
+
+# start-llama-server-gpu.sh has no shebang line, so it must be run through a
+# shell rather than exec'd directly (exec form would hit "exec format error").
+CMD ["sh", "start-llama-server-gpu.sh"]

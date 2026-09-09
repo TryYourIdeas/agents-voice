@@ -1,0 +1,177 @@
+# Standalone stack for the WhatsApp bot: `whatsap` (the LangChain/Anthropic
+# agent bridged to WhatsApp Web), `stt` (Whisper speech-to-text, used to
+# transcribe voice notes sent to the "@jlabrada71" chat before forwarding
+# them to the agent — see index.ts), `plantuml-renderer` (renders PlantUML
+# diagrams to images — see ../plantuml-renderer/README.md — used by the
+# system-design-coach agent's render_diagram tool to show diagrams), and
+# `llama-server` (local OpenAI/Ollama-compatible inference, exposed at :5050
+# for future local-model wiring; the agent itself talks to the real
+# Anthropic API by default via ANTHROPIC_*).
+#
+# llama-server here builds from llama-server/Dockerfile.gpu (the GPU-enabled
+# variant, using llama-gpu/'s CUDA-linked binaries) rather than the CPU-only
+# llama-server/Dockerfile used by the root docker-compose.yml — see that
+# Dockerfile.gpu for the CUDA runtime version it needs. Both llama-server and
+# stt reserve the GPU here, on top of whatever the main docker-compose.yml's
+# tts/stt/qwen-stt services are already using if run concurrently on the
+# same GPU — see docs/user-guides/config.md's GPU memory budget notes.
+#
+# Usage:
+#   docker compose -f docker-compose-whatsap.yml up --build
+#
+# First run needs an interactive terminal to scan the WhatsApp Web QR code
+# for each configured device (see whatsap/devices/*/device.md):
+#   docker compose -f docker-compose-whatsap.yml run --rm whatsap
+# (or `up` in the foreground, not detached, and watch the logs — each
+# device's QR is prefixed with its device name). The authenticated session
+# then persists in ./whatsap/devices/<name>/session across restarts.
+#
+# `name:` gives this stack its own Compose project so it won't collide with
+# containers started from the default docker-compose.yml.
+name: agents-voice-whatsap
+
+services:
+  whatsap:
+    build: ./whatsap
+    image: agents-voice-whatsap:latest
+    env_file:
+      - ./.env.whatsap-llama
+    volumes:
+      # Per-device session, memory, scheduled tasks, and any file a device's
+      # tools create/download (see lib/device-scoped-path.ts and
+      # docs/superpowers/specs/2026-09-08-multi-device-support-design.md) —
+      # devices/<name>/{session,memory,tasks,research,diagrams,ai-news,...}.
+      # Every file-producing tool (write_file, download_file, web_search,
+      # render_diagram, scheduled-task output, etc.) now resolves under a
+      # device's own directory, so this one mount covers all of it — without
+      # it, every image rebuild would wipe every device's auth session,
+      # memory, schedules, and any files it created.
+      - ./whatsap/devices:/app/devices
+      # Device-onboarding drop directory (see whatsap/device-onboarding.ts)
+      # — a new device is created by writing new-devices/<name>.md here;
+      # the running process picks it up without a restart.
+      - ./whatsap/new-devices:/app/new-devices
+    environment:
+      STT_URL: http://stt:8001
+      PLANTUML_URL: http://plantuml-renderer:3000
+      # Comma-separated chat display names (as shown by "@ai list channels")
+      # whose voice notes get transcribed and forwarded to the agent — see
+      # index.ts. Audio sent to any other chat is left untouched.
+      STT_ALLOWED_CHATS: "@jlabrada71"
+    depends_on:
+      - llama-server
+      - stt
+      - plantuml-renderer
+    # QR code login (first run) is printed to stdout and needs a TTY.
+    stdin_open: true
+    tty: true
+    restart: unless-stopped
+
+  devices-ui:
+    build: ./whatsap/devices-ui
+    image: whatsap-devices-ui:latest
+    ports:
+      # Host port 3002 was already taken by an unrelated native process on
+      # this host (same class of conflict plantuml-renderer's own port hit
+      # previously) — internal container-to-container traffic is on the
+      # container's own port 3000 regardless, unaffected by this remap.
+      - "3003:3000"
+    environment:
+      # NUXT_-prefixed so Nuxt's runtime override mechanism actually applies
+      # to the *built* image (see devices-ui/nuxt.config.ts's comment) —
+      # reaches whatsap's internal API (internal-api.ts) by Docker
+      # service-name DNS, never exposed to the host directly.
+      NUXT_WHATSAP_API_URL: http://whatsap:4001
+      NUXT_NEW_DEVICES_DIR: /data/new-devices
+    volumes:
+      # Shared with whatsap's own ./whatsap/new-devices mount — this is how
+      # the "Add Device" form creates a device without ever calling into
+      # whatsap's (read-only) API. See whatsap/device-onboarding.ts.
+      - ./whatsap/new-devices:/data/new-devices
+    depends_on:
+      - whatsap
+    restart: unless-stopped
+
+  stt:
+    build: ./whisper-speech-to-text
+    image: whisper-stt:latest
+    ports:
+      - "8001:8001"
+    volumes:
+      - ./models:/models
+    environment:
+      WHISPER_MODEL: openai/whisper-large-v3-turbo
+      WHISPER_DEVICE: cuda:0
+      WHISPER_ATTN: sdpa
+      WHISPER_CHUNK_LENGTH_S: "30"
+      WHISPER_BATCH_SIZE: "8"
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:8001/health').status==200 else 1)"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 300s
+    restart: unless-stopped
+
+  plantuml-renderer:
+    build: ./plantuml-renderer
+    image: plantuml-renderer:latest
+    ports:
+      # Host port 3001 to avoid colliding with something else already using
+      # 3000 on this host — internal service-to-service traffic (what
+      # whatsap actually uses, via PLANTUML_URL) is on the container's own
+      # port 3000 regardless, unaffected by this host-side mapping.
+      - "3001:3000"
+    environment:
+      PORT: 3000
+      PLANTUML_TIMEOUT_MS: 10000
+      MAX_DIAGRAM_SIZE: 1048576
+      MAX_CONCURRENT_RENDERS: 2
+    # See plantuml-renderer/README.md's Security section for what these do.
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    read_only: true
+    tmpfs:
+      - /tmp
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    restart: unless-stopped
+
+  llama-server:
+    build:
+      context: .
+      dockerfile: llama-server/Dockerfile.gpu
+    image: llama-server-qwen3.5-gpu:latest
+    env_file:
+      # Shares MAX_TOKENS with the whatsap service — read by
+      # start-llama-server-gpu.sh's -n flag (see that script).
+      - ./.env.whatsap-llama
+    ports:
+      - "5050:5050"
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5050/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 60s
+    restart: unless-stopped

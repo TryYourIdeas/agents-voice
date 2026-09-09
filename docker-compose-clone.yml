@@ -1,0 +1,61 @@
+# Alternative stack for voice cloning: only `tts` (with cloning enabled) and
+# `ui` run — both STT services are omitted entirely, since this GPU doesn't
+# have enough VRAM to run cloning (loads two ~1.7B models: CustomVoice + Base)
+# alongside any STT service. See docs/user-guides/config.md for the measured
+# per-service VRAM budget.
+#
+# Usage:
+#   docker compose -f docker-compose-clone.yml up --build
+#
+# `name:` below gives this stack its own Compose project, so it won't collide
+# with containers started from the default docker-compose.yml (though on a
+# single GPU you still can't run both stacks at once — stop one before
+# starting the other).
+name: agents-voice-clone
+
+services:
+  tts:
+    build: ./text-to-speech
+    image: qwen3-tts:latest
+    ports:
+      - "8000:8000"
+    volumes:
+      # Persist downloaded model weights between runs.
+      - ./models:/models
+      # Persist cloned voices (raw audio + ref_text). Replayed on startup.
+      - ./voices:/voices
+    environment:
+      QWEN_TTS_MODEL: Qwen/Qwen3-TTS-12Hz-1.7B-CustomVoice
+      QWEN_TTS_DEVICE: cuda:0
+      QWEN_TTS_DTYPE: bfloat16
+      QWEN_TTS_ATTN: sdpa
+      # Voice cloning enabled: loads the Base model alongside CustomVoice.
+      QWEN_TTS_ENABLE_CLONE: "true"
+      # HUGGING_FACE_HUB_TOKEN: ${HF_TOKEN}
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:8000/health').status==200 else 1)"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 300s
+
+  ui:
+    build: ./ui
+    image: agents-voice-ui:latest
+    ports:
+      - "3000:3000"
+    environment:
+      # Maps to runtimeConfig.ttsUrl in nuxt.config.ts (Nuxt 3 NUXT_* override).
+      # sttUrl/qwenSttUrl are left at their defaults (unreachable on purpose —
+      # both STT services are disabled in this stack); the transcribe form
+      # will show a connection error if used here, by design.
+      NUXT_TTS_URL: http://tts:8000
+    depends_on:
+      - tts

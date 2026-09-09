@@ -1,0 +1,6 @@
+qwen-asr
+fastapi>=0.115
+uvicorn[standard]>=0.32
+soundfile>=0.12
+python-multipart>=0.0.12
+numpy>=1.26
