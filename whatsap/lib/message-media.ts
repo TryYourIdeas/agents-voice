@@ -64,3 +64,55 @@ export async function transcribeAudio(media: DownloadedMedia): Promise<string> {
     const { text } = await res.json() as { text: string };
     return text;
 }
+
+export type ResolvedMedia = {
+    images: DownloadedMedia[];
+    audioTranscripts: string[];
+};
+
+function mediaKind(type: string): 'image' | 'audio' | undefined {
+    if (type === 'image') return 'image';
+    if (type === 'ptt' || type === 'audio') return 'audio';
+    return undefined;
+}
+
+async function resolveOne(client: any, message: any, resolved: ResolvedMedia): Promise<void> {
+    if (!message?.hasMedia) return;
+    const kind = mediaKind(message.type);
+    if (!kind) return;
+
+    try {
+        const media = await downloadMessageMedia(client, message.rawData);
+        if (!media) return;
+
+        if (kind === 'image') {
+            resolved.images.push(media);
+        } else {
+            resolved.audioTranscripts.push(await transcribeAudio(media));
+        }
+    } catch (err) {
+        console.error(`[debug] resolveIncomingMedia: failed to resolve ${kind} media:`, err);
+    }
+}
+
+// Resolves media attached directly to `message`, and (if present) media on
+// the message it quotes/replies to. Each candidate is resolved
+// independently — a failure on one (download or transcription) is logged
+// and skipped rather than aborting the rest, so e.g. a failed quoted-image
+// download doesn't also lose a successfully-transcribed direct voice note.
+export async function resolveIncomingMedia(client: any, message: any): Promise<ResolvedMedia> {
+    const resolved: ResolvedMedia = { images: [], audioTranscripts: [] };
+
+    await resolveOne(client, message, resolved);
+
+    if (message.hasQuotedMsg) {
+        try {
+            const quoted = await message.getQuotedMessage();
+            await resolveOne(client, quoted, resolved);
+        } catch (err) {
+            console.error('[debug] resolveIncomingMedia: failed to load quoted message:', err);
+        }
+    }
+
+    return resolved;
+}
