@@ -95,6 +95,23 @@ async function resolveOne(client: any, message: any, resolved: ResolvedMedia): P
     }
 }
 
+// Not using message.getQuotedMessage() here: it does its own internal
+// WAWebCollections.Msg.get()/getMessagesById() store lookup by id, which
+// throws for this self-chat's @lid-addressed messages — the same class of
+// fragile internal-Store failure worked around elsewhere in this codebase
+// (see downloadMessageMedia's comment above, and getChatNameById in
+// bot.ts). The quoted message's own media descriptor (type, mimetype,
+// directPath, encFilehash, mediaKey, ...) is already embedded inline as
+// message.rawData.quotedMsg — a snapshot taken when the reply was sent, no
+// separate lookup needed — and it already has every field
+// downloadMessageMedia's decrypt step needs, so it can be used directly as
+// that call's rawData argument.
+function quotedMediaCandidate(rawData: any): { hasMedia: true; type: string; rawData: any } | undefined {
+    const quotedMsg = rawData?.quotedMsg;
+    if (!quotedMsg?.type) return undefined;
+    return { hasMedia: true, type: quotedMsg.type, rawData: quotedMsg };
+}
+
 // Resolves media attached directly to `message`, and (if present) media on
 // the message it quotes/replies to. Each candidate is resolved
 // independently — a failure on one (download or transcription) is logged
@@ -105,13 +122,9 @@ export async function resolveIncomingMedia(client: any, message: any): Promise<R
 
     await resolveOne(client, message, resolved);
 
-    if (message.hasQuotedMsg) {
-        try {
-            const quoted = await message.getQuotedMessage();
-            await resolveOne(client, quoted, resolved);
-        } catch (err) {
-            console.error('[debug] resolveIncomingMedia: failed to load quoted message:', err);
-        }
+    const quoted = quotedMediaCandidate(message.rawData);
+    if (quoted) {
+        await resolveOne(client, quoted, resolved);
     }
 
     return resolved;
