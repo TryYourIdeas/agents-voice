@@ -16,10 +16,10 @@ import { archiveTask, tasksDir } from './lib/tasks.ts'
 import { setWhatsAppClient } from './lib/whatsapp-client.ts'
 import { setDeviceStatus } from './lib/device-status.ts'
 import type { DeviceConfig } from './lib/devices.ts'
+import { downloadMessageMedia, transcribeAudio, resolveIncomingMedia } from './lib/message-media.ts'
+import type { MessageContent } from "@langchain/core/messages"
 
 const { Client, LocalAuth } = whatsapp
-
-const STT_URL = process.env.STT_URL || 'http://localhost:8001';
 
 // Chats whose voice notes get transcribed and forwarded to the default agent
 // automatically, without needing an "@ai" prefix (voice notes have no text
@@ -49,61 +49,6 @@ async function getChatNameById(client: any, chatId: string): Promise<string | un
         const chat = window.require('WAWebCollections').Chat.get(window.require('WAWebWidFactory').createWid(id));
         return chat ? (chat.formattedTitle || chat.name) : undefined;
     }, chatId);
-}
-
-async function downloadAudioMedia(client: any, message: any): Promise<{ data: string; mimetype: string } | undefined> {
-    // Not using message.downloadMedia() here: it re-fetches the message from
-    // WhatsApp Web's internal IndexedDB store by id before decrypting, and
-    // that lookup throws ("DataError: ... No key or key range specified")
-    // for this self-chat's @lid-addressed messages — the same class of
-    // fragile internal-Store failure worked around elsewhere in this file.
-    // message.rawData (aka message._data) already has every field the
-    // decrypt step needs, snapshotted client-side when the event fired, so
-    // skip the re-fetch and decrypt directly from that.
-    const raw = message.rawData;
-    const result = await client.pupPage!.evaluate(async (raw: any) => {
-        try {
-            const mockQpl = {
-                addAnnotations() { return this; },
-                addPoint() { return this; },
-            };
-            // @ts-ignore - window.require/WWebJS are injected by whatsapp-web.js, not typed
-            const decrypted = await window.require('WAWebDownloadManager').downloadManager.downloadAndMaybeDecrypt({
-                directPath: raw.directPath,
-                encFilehash: raw.encFilehash,
-                filehash: raw.filehash,
-                mediaKey: raw.mediaKey,
-                mediaKeyTimestamp: raw.mediaKeyTimestamp,
-                type: raw.type,
-                signal: (new AbortController()).signal,
-                downloadQpl: mockQpl,
-            });
-            // @ts-ignore
-            const data = await window.WWebJS.arrayBufferToBase64Async(decrypted);
-            return { data, mimetype: raw.mimetype };
-        } catch (e: any) {
-            return { __error: e?.message || String(e) };
-        }
-    }, raw);
-
-    if (!result || '__error' in result) {
-        console.error('[debug] downloadAudioMedia failed:', (result as any)?.__error);
-        return undefined;
-    }
-    return result as { data: string; mimetype: string };
-}
-
-async function transcribeAudio(media: { data: string; mimetype: string }): Promise<string> {
-    const audioBuffer = Buffer.from(media.data, 'base64');
-    const form = new FormData();
-    form.append('audio', new Blob([audioBuffer], { type: media.mimetype || 'application/octet-stream' }), 'audio');
-
-    const res = await fetch(`${STT_URL}/stt`, { method: 'POST', body: form });
-    if (!res.ok) {
-        throw new Error(`STT request failed: ${res.status} ${await res.text()}`);
-    }
-    const { text } = await res.json() as { text: string };
-    return text;
 }
 
 // Per-device raw-event log (was a single shared logs.txt before devices
@@ -213,7 +158,7 @@ export function createDeviceBot(device: DeviceConfig): any {
                 const chatName = await getChatNameById(client, chatId);
                 if (chatName && STT_ALLOWED_CHATS.includes(chatName)) {
                     console.log(`[${deviceName}] [debug] audio message received in '${chatName}' (stt-allowed), transcribing...`);
-                    const media = await downloadAudioMedia(client, message);
+                    const media = await downloadMessageMedia(client, message.rawData);
                     if (!media) {
                         await message.reply('Sorry, I could not download that audio.');
                     } else {
@@ -246,6 +191,7 @@ export function createDeviceBot(device: DeviceConfig): any {
                     '@ai list tasks — list active scheduled tasks\n' +
                     '@ai cancel task <name> — cancel a scheduled task\n' +
                     '@ai <message> — talk to the default agent\n' +
+                    '@ai <message> with an attached or quoted image/voice note — the agent sees the image or hears the transcribed audio\n' +
                     `Voice notes sent to: ${STT_ALLOWED_CHATS.join(', ')} — auto-transcribed and forwarded to the default agent`
                 );
             } else if (request.toLowerCase() === 'clear session') {
@@ -348,9 +294,22 @@ export function createDeviceBot(device: DeviceConfig): any {
                 }
             } else {
                 try {
-                    const response = await callAgent(deviceName, request, chatId);
-                    console.log(`[${deviceName}] [debug] agent response:`, response);
-                    await sendAgentResponse(client, chatId, response);
+                    const { images, audioTranscripts } = await resolveIncomingMedia(client, message);
+                    const text = [request, ...audioTranscripts].filter(Boolean).join('\n\n');
+
+                    if (!text && images.length === 0) {
+                        await message.reply('Sorry, I could not find anything to work with in that message.');
+                    } else {
+                        const content: MessageContent = images.length === 0
+                            ? text
+                            : [
+                                ...(text ? [{ type: 'text' as const, text }] : []),
+                                ...images.map((img) => ({ type: 'image' as const, mimeType: img.mimetype, data: img.data })),
+                            ];
+                        const response = await callAgent(deviceName, content, chatId);
+                        console.log(`[${deviceName}] [debug] agent response:`, response);
+                        await sendAgentResponse(client, chatId, response);
+                    }
                 } catch (err) {
                     console.error(`[${deviceName}] [debug] callAgent failed:`, err);
                     await message.reply('Sorry, something went wrong processing that request.');

@@ -320,6 +320,34 @@ Give 2–4 concrete actions.
 
 Avoid generic advice.
 
+**Every action must come with a concrete example, not just the instruction.** An instruction like
+"make the hook more dramatic" or "raise the stakes" is not actionable on its own — the user needs
+to see what that actually looks like. Before writing this section:
+
+1. **Call `load_skill` now** for whichever of hook-and-opening-techniques, tension-and-conflict,
+   character-and-emotion, pacing-clarity-and-authenticity, impact-and-meaning,
+   story-structure-frameworks, or executive-interview-and-pitch-stories matches the Biggest
+   Opportunity's dimension (see each skill's description for which dimension it covers) — do this
+   even if you think you already know a relevant example; the skill's named techniques are more
+   specific and better-chosen than one you'd improvise. Skip this only if the Biggest Opportunity
+   genuinely doesn't map to any of these (rare).
+2. At least one of your 2–4 actions must literally follow this shape — the technique's name and
+   its example are not optional extras, they're part of the action itself:
+
+   > **[Action instruction, e.g. "Open with a flash-forward instead of the chronology."]**
+   > *[Technique name from the skill]*: "[the skill's own example line, quoted or closely reused —
+   > not paraphrased into generic advice]"
+
+   A generic instruction with no named technique and no quoted example (like the earlier "describe
+   a specific moment of tension" without naming what that technique is called) does not satisfy
+   this — go back and add the name + quoted example if a draft action is missing them.
+3. For any action not covered by a loaded skill, write a short example yourself — clearly
+   labeled as an example, generic is fine.
+4. Whenever it fits naturally, *also* show what the technique would look like applied to the
+   user's own story (per Coaching Philosophy above) — the generic example teaches the concept,
+   the applied one shows them how to actually use it right now. Don't skip the generic example
+   just because you did the applied one, or vice versa — they serve different purposes.
+
 ## Try This
 
 Give the user a specific challenge for their next version.

@@ -1,5 +1,5 @@
 import { createAgent } from "langchain";
-import { HumanMessage, SystemMessage } from "@langchain/core/messages";
+import { HumanMessage, SystemMessage, type MessageContent } from "@langchain/core/messages";
 import { readFileSync } from "fs";
 
 import { model, sharedTools, sharedCheckpointer } from "./shared.ts";
@@ -43,10 +43,10 @@ function getDefaultAgent(deviceName: string): ReturnType<typeof createAgent> {
     return agent;
 }
 
-export async function callAgent(deviceName: string, message: string, localThreadId: string): Promise<string> {
+export async function callAgent(deviceName: string, content: MessageContent, localThreadId: string): Promise<string> {
     const agent = getDefaultAgent(deviceName);
     const result = await agent.invoke(
-        { messages: [new HumanMessage(message)] },
+        { messages: [new HumanMessage(content)] },
         {
             recursionLimit: 100,
             // Every conversation thread id is wrapped in a "device:<name>:"
