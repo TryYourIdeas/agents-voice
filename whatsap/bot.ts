@@ -16,7 +16,8 @@ import { archiveTask, tasksDir } from './lib/tasks.ts'
 import { setWhatsAppClient } from './lib/whatsapp-client.ts'
 import { setDeviceStatus } from './lib/device-status.ts'
 import type { DeviceConfig } from './lib/devices.ts'
-import { downloadMessageMedia, transcribeAudio } from './lib/message-media.ts'
+import { downloadMessageMedia, transcribeAudio, resolveIncomingMedia } from './lib/message-media.ts'
+import type { MessageContent } from "@langchain/core/messages"
 
 const { Client, LocalAuth } = whatsapp
 
@@ -190,6 +191,7 @@ export function createDeviceBot(device: DeviceConfig): any {
                     '@ai list tasks — list active scheduled tasks\n' +
                     '@ai cancel task <name> — cancel a scheduled task\n' +
                     '@ai <message> — talk to the default agent\n' +
+                    '@ai <message> with an attached or quoted image/voice note — the agent sees the image or hears the transcribed audio\n' +
                     `Voice notes sent to: ${STT_ALLOWED_CHATS.join(', ')} — auto-transcribed and forwarded to the default agent`
                 );
             } else if (request.toLowerCase() === 'clear session') {
@@ -292,9 +294,22 @@ export function createDeviceBot(device: DeviceConfig): any {
                 }
             } else {
                 try {
-                    const response = await callAgent(deviceName, request, chatId);
-                    console.log(`[${deviceName}] [debug] agent response:`, response);
-                    await sendAgentResponse(client, chatId, response);
+                    const { images, audioTranscripts } = await resolveIncomingMedia(client, message);
+                    const text = [request, ...audioTranscripts].filter(Boolean).join('\n\n');
+
+                    if (!text && images.length === 0) {
+                        await message.reply('Sorry, I could not find anything to work with in that message.');
+                    } else {
+                        const content: MessageContent = images.length === 0
+                            ? text
+                            : [
+                                ...(text ? [{ type: 'text' as const, text }] : []),
+                                ...images.map((img) => ({ type: 'image' as const, mimeType: img.mimetype, data: img.data })),
+                            ];
+                        const response = await callAgent(deviceName, content, chatId);
+                        console.log(`[${deviceName}] [debug] agent response:`, response);
+                        await sendAgentResponse(client, chatId, response);
+                    }
                 } catch (err) {
                     console.error(`[${deviceName}] [debug] callAgent failed:`, err);
                     await message.reply('Sorry, something went wrong processing that request.');
