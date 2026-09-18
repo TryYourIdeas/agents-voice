@@ -12,6 +12,28 @@ import { pickUpPendingDevices, startDeviceOnboardingPoller } from './device-onbo
 import { startScheduler, type DeviceHandle } from './scheduler.ts'
 import { startInternalApi } from './internal-api.ts'
 
+// whatsapp-web.js's own Client.js re-injects page bindings on every
+// 'framenavigated' event (see its Client.js, the pupPage.on('framenavigated',
+// ...) listener) via an unawaited async callback. During a WhatsApp-initiated
+// LOGOUT/reconnect cycle, multiple navigations can fire close enough together
+// that two overlapping inject() calls both see a binding (e.g.
+// onQRChangedEvent) as absent and both try to add it — the library's own
+// exposeFunctionIfAbsent (src/util/Puppeteer.js) check-then-act isn't atomic,
+// so the second call throws "already exists". That throw is inside a
+// library-internal listener we don't control, so it can't be caught at the
+// call site the way client.initialize()'s rejection is caught in bot.ts —
+// left unhandled, it crashes the whole process (Node 15+ default), taking
+// every other device down with it, not just the one whose session lapsed.
+// Logging and continuing here is the same fix in spirit as bot.ts's
+// initialize().catch(), just at the process level for errors that originate
+// deeper inside the library than any one client's call sites reach.
+process.on('unhandledRejection', (reason) => {
+    console.error('[fatal-guard] unhandled promise rejection (continuing so other devices stay up):', reason);
+});
+process.on('uncaughtException', (err) => {
+    console.error('[fatal-guard] uncaught exception (continuing so other devices stay up):', err);
+});
+
 // Mutated in place (never reassigned) as devices come online, including
 // after startup via the onboarding poller — scheduler.ts's setInterval
 // closes over this same array reference, so it sees new devices on its
