@@ -61,7 +61,9 @@ There are no test suites, linters, or CI configured in this repo currently.
 (what each service/UI can do), `manual.md` (UI walkthrough), `api.md` (endpoint reference for all three
 backend services + the UI's proxy routes), and `api.yml` (OpenAPI 3.0 spec for the three backend
 services — paths are prefixed by service name, e.g. `/whisper-speech-to-text/stt`, since the doc
-combines three independently-rooted APIs into one file; each operation pins its real `servers` entry).
+combines three independently-rooted APIs into one file; each operation pins its real `servers` entry),
+and `troubleshooting.md` (host-level Docker/containerd/BuildKit and NVIDIA CDI issues seen when
+building or running the stack — check this before re-diagnosing a build/GPU failure from scratch).
 Keep these in sync when changing request/response shapes, env vars, or adding endpoints.
 
 ## Key behaviors to preserve when editing
