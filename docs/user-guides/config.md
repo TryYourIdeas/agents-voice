@@ -174,3 +174,21 @@ docker build --build-arg TORCH_INDEX_URL=https://download.pytorch.org/whl/cpu -t
 If you build CPU-only images, also remove or comment out the `deploy.resources.reservations.devices`
 block for that service in `docker-compose.yml` (it requests `nvidia` GPU devices and will fail to start
 without an `nvidia-container-toolkit` runtime).
+
+## `ai-extension`
+
+### `ai-extension/server` (`.env`)
+
+| Env var | Default | Purpose |
+|---|---|---|
+| `ANTHROPIC_API_KEY` | — (required) | Anthropic API key for the chat agent |
+| `ANTHROPIC_MODEL` | — (required) | Model id, e.g. `claude-sonnet-5` |
+| `EXTENSION_ID` | — (required) | The loaded extension's Chrome ID — restricts CORS to `chrome-extension://<id>` |
+| `PORT` | `4100` | HTTP port the server listens on |
+| `MAX_CONTEXT_CHARS` | `20000` | Max characters of attached page/selection text sent to the agent per message; longer text is truncated with a note |
+
+### `ai-extension/extension`
+
+`manifest.config.ts`'s `key` field pins the extension's ID across rebuilds — generate your
+own (`openssl genrsa 2048 | openssl rsa -pubout`, base64-encode the DER public key) rather
+than using the placeholder, so `EXTENSION_ID` above doesn't need updating every build.
