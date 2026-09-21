@@ -6,7 +6,11 @@
 # system-design-coach agent's render_diagram tool to show diagrams), and
 # `llama-server` (local OpenAI/Ollama-compatible inference, exposed at :5050
 # for future local-model wiring; the agent itself talks to the real
-# Anthropic API by default via ANTHROPIC_*).
+# Anthropic API by default via ANTHROPIC_*), and `ai-extension-server` (the
+# backend for the ai-extension Chrome extension's side-panel chat — see
+# ai-extension/CLAUDE.md — pointed at llama-server via the same
+# .env.whatsap-llama file whatsap uses, so it needs no real Anthropic API
+# key either).
 #
 # llama-server here builds from llama-server/Dockerfile.gpu (the GPU-enabled
 # variant, using llama-gpu/'s CUDA-linked binaries) rather than the CPU-only
@@ -65,6 +69,34 @@ services:
     # QR code login (first run) is printed to stdout and needs a TTY.
     stdin_open: true
     tty: true
+    restart: unless-stopped
+
+  ai-extension-server:
+    build: ./ai-extension/server
+    image: ai-extension-server:latest
+    env_file:
+      # Same file whatsap/llama-server use — ANTHROPIC_BASE_URL already
+      # points at http://llama-server:5050 (the Docker service DNS name),
+      # with placeholder ANTHROPIC_API_KEY/ANTHROPIC_MODEL, so no real
+      # Anthropic API key is needed to run this locally.
+      - ./.env.whatsap-llama
+    ports:
+      - "4100:4100"
+    environment:
+      # Matches ai-extension/extension/manifest.config.ts's pinned dev key's
+      # derived ID — see docs/user-guides/config.md. Override both together
+      # if you swap in your own manifest key.
+      EXTENSION_ID: kbemgcmgfjcmpfhfcpfgfpanaommfgco
+      PORT: "4100"
+      MAX_CONTEXT_CHARS: "20000"
+    depends_on:
+      - llama-server
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:4100/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
     restart: unless-stopped
 
   devices-ui:

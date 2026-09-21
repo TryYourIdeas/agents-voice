@@ -188,6 +188,21 @@ without an `nvidia-container-toolkit` runtime).
 | `PORT` | `4100` | HTTP port the server listens on |
 | `MAX_CONTEXT_CHARS` | `20000` | Max characters of attached page/selection text sent to the agent per message; longer text is truncated with a note |
 
+### Running `ai-extension/server` in Docker
+
+`docker-compose-whatsap.yml` has an `ai-extension-server` service alongside `whatsap` and
+`llama-server`, sharing the root `.env.whatsap-llama` file (so `ANTHROPIC_BASE_URL` is
+already `http://llama-server:5050` — the Docker service DNS name, not `localhost`, since
+containers don't share a loopback interface). `EXTENSION_ID`/`PORT`/`MAX_CONTEXT_CHARS` are
+set directly in the compose file's `environment:` block instead of a `.env`. Start it with:
+
+```bash
+docker compose -f docker-compose-whatsap.yml up -d llama-server ai-extension-server
+```
+
+Published on `http://localhost:4100` on the host either way, so the extension's `fetch`
+calls need no changes between the Docker and bare-Node setups.
+
 ### `ai-extension/extension`
 
 `manifest.config.ts`'s `key` field pins the extension's ID across rebuilds — for unpacked

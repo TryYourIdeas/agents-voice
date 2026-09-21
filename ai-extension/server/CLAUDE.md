@@ -23,6 +23,11 @@ but its own independent instance — see
   placeholder `ANTHROPIC_API_KEY`/`ANTHROPIC_MODEL` values (e.g. `not-necessary`); the
   Anthropic SDK reads `ANTHROPIC_BASE_URL` from the environment on its own, so `agent.ts`
   needs no code change to point at it instead of the real API. See `.env.example`.
+- **Docker**: `Dockerfile` builds this service for `docker-compose-whatsap.yml`'s
+  `ai-extension-server`, which shares `.env.whatsap-llama` with `whatsap`/`llama-server` (so
+  `ANTHROPIC_BASE_URL` there is already `http://llama-server:5050`, the Docker service DNS
+  name — not `localhost`, since containers don't share a loopback). Run:
+  `docker compose -f docker-compose-whatsap.yml up -d llama-server ai-extension-server`.
 
 ## Architecture
 
