@@ -31,6 +31,12 @@ export function useChat(serverUrl: string) {
                 return;
             }
             messages.value.push({ role: "agent", text: data.reply });
+        } catch (error) {
+            // fetch() itself throwing (connection refused, CORS-blocked
+            // preflight, DNS failure, ...) never produces a Response, so
+            // this is the only place that kind of failure surfaces.
+            const reason = error instanceof Error ? error.message : String(error);
+            messages.value.push({ role: "agent", text: `Error: could not reach the agent (${reason})` });
         } finally {
             pendingContext.value = undefined;
             isSending.value = false;

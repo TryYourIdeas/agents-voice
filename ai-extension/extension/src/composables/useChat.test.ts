@@ -51,4 +51,31 @@ describe("useChat", () => {
             { role: "agent", text: "Error: could not reach the agent (boom)" },
         ]);
     });
+
+    it("sets an error message when fetch itself throws (network/CORS failure)", async () => {
+        vi.stubGlobal(
+            "fetch",
+            vi.fn(async () => {
+                throw new TypeError("Failed to fetch");
+            })
+        );
+        const { messages, sendMessage } = useChat("http://localhost:4100");
+        await sendMessage("hello");
+        expect(messages.value).toEqual([
+            { role: "user", text: "hello" },
+            { role: "agent", text: "Error: could not reach the agent (Failed to fetch)" },
+        ]);
+    });
+
+    it("resets isSending after fetch throws", async () => {
+        vi.stubGlobal(
+            "fetch",
+            vi.fn(async () => {
+                throw new TypeError("Failed to fetch");
+            })
+        );
+        const { sendMessage, isSending } = useChat("http://localhost:4100");
+        await sendMessage("hello");
+        expect(isSending.value).toBe(false);
+    });
 });
