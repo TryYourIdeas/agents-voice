@@ -7,6 +7,7 @@ const SERVER_URL = "http://localhost:4100";
 
 const { messages, sendMessage, pendingContext, isSending } = useChat(SERVER_URL);
 const draft = ref("");
+const contextError = ref<string | undefined>(undefined);
 
 async function onSend() {
     if (!draft.value.trim() || isSending.value) return;
@@ -16,11 +17,21 @@ async function onSend() {
 }
 
 async function onUseSelection() {
-    pendingContext.value = await grabSelection();
+    contextError.value = undefined;
+    try {
+        pendingContext.value = await grabSelection();
+    } catch (error) {
+        contextError.value = error instanceof Error ? error.message : String(error);
+    }
 }
 
 async function onUsePage() {
-    pendingContext.value = await grabPageText();
+    contextError.value = undefined;
+    try {
+        pendingContext.value = await grabPageText();
+    } catch (error) {
+        contextError.value = error instanceof Error ? error.message : String(error);
+    }
 }
 
 function clearContext() {
@@ -41,6 +52,10 @@ function clearContext() {
     <div v-if="pendingContext" class="mx-3 flex items-center justify-between rounded bg-yellow-100 px-2 py-1 text-sm">
       <span class="truncate">{{ pendingContext.type }}: {{ pendingContext.text }}</span>
       <button type="button" aria-label="Remove attached context" @click="clearContext">×</button>
+    </div>
+
+    <div v-if="contextError" role="alert" class="mx-3 rounded bg-red-100 px-2 py-1 text-sm text-red-800">
+      {{ contextError }}
     </div>
 
     <div class="flex gap-2 p-3">

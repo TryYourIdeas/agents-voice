@@ -41,4 +41,24 @@ describe("ChatView", () => {
         await fireEvent.click(screen.getByRole("button", { name: /remove attached context/i }));
         expect(screen.queryByText(/sel text/i)).not.toBeInTheDocument();
     });
+
+    it("shows a visible error when grabbing page context fails", async () => {
+        const { grabPageText } = await import("../composables/usePageContext.ts");
+        vi.mocked(grabPageText).mockRejectedValueOnce(new Error("Cannot access contents of the page"));
+
+        render(ChatView);
+        await fireEvent.click(screen.getByRole("button", { name: /use page/i }));
+
+        expect(await screen.findByText(/cannot access contents of the page/i)).toBeInTheDocument();
+    });
+
+    it("shows a visible error when grabbing selection context fails", async () => {
+        const { grabSelection } = await import("../composables/usePageContext.ts");
+        vi.mocked(grabSelection).mockRejectedValueOnce(new Error("No active tab found"));
+
+        render(ChatView);
+        await fireEvent.click(screen.getByRole("button", { name: /use selection/i }));
+
+        expect(await screen.findByText(/no active tab found/i)).toBeInTheDocument();
+    });
 });
