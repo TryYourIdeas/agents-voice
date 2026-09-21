@@ -75,4 +75,38 @@ describe("POST /api/chat", () => {
             .send({ message: "hi" });
         expect(res.status).toBe(400);
     });
+
+    it("returns a friendly message when the model backend is still loading (503)", async () => {
+        vi.mocked(callAgent).mockRejectedValueOnce(Object.assign(new Error("Loading model"), { status: 503 }));
+        const app = createApp({ extensionId: "test-extension-id", maxContextChars: 1000 });
+        const res = await request(app)
+            .post("/api/chat")
+            .set("Origin", EXTENSION_ORIGIN)
+            .send({ message: "hi", threadId: "t1" });
+        expect(res.status).toBe(500);
+        expect(res.body.error).toMatch(/still starting up/i);
+    });
+
+    it("returns a friendly message when the 503 is nested under .cause (LangChain MiddlewareError)", async () => {
+        const cause = Object.assign(new Error("Loading model"), { status: 503 });
+        vi.mocked(callAgent).mockRejectedValueOnce(Object.assign(new Error("wrapped"), { cause }));
+        const app = createApp({ extensionId: "test-extension-id", maxContextChars: 1000 });
+        const res = await request(app)
+            .post("/api/chat")
+            .set("Origin", EXTENSION_ORIGIN)
+            .send({ message: "hi", threadId: "t1" });
+        expect(res.status).toBe(500);
+        expect(res.body.error).toMatch(/still starting up/i);
+    });
+
+    it("falls back to a generic message for other agent failures", async () => {
+        vi.mocked(callAgent).mockRejectedValueOnce(new Error("boom"));
+        const app = createApp({ extensionId: "test-extension-id", maxContextChars: 1000 });
+        const res = await request(app)
+            .post("/api/chat")
+            .set("Origin", EXTENSION_ORIGIN)
+            .send({ message: "hi", threadId: "t1" });
+        expect(res.status).toBe(500);
+        expect(res.body).toEqual({ error: "Agent call failed" });
+    });
 });

@@ -90,7 +90,13 @@ services:
       PORT: "4100"
       MAX_CONTEXT_CHARS: "20000"
     depends_on:
-      - llama-server
+      # condition: service_healthy (not the plain list form) so this only
+      # starts once llama-server's own healthcheck passes — llama.cpp
+      # returns 503 "Loading model" on /health (and on chat requests) for a
+      # while after the container starts, until the GGUF finishes loading.
+      # Without this, an early chat request can hit that window and fail.
+      llama-server:
+        condition: service_healthy
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:4100/health"]
       interval: 30s

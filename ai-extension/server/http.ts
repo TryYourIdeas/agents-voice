@@ -21,6 +21,20 @@ export interface AppConfig {
     maxContextChars: number;
 }
 
+// llama-server returns 503 while it's still loading the model into memory
+// (see docker-compose-whatsap.yml's ai-extension-server depends_on note) —
+// surfaced by the Anthropic SDK as a 503 InternalServerError, sometimes
+// wrapped in a LangChain MiddlewareError as `.cause`. Give the user an
+// actionable message instead of the generic fallback in that case.
+function describeAgentError(error: unknown): string {
+    const status = (error as { status?: number; cause?: { status?: number } })?.status
+        ?? (error as { cause?: { status?: number } })?.cause?.status;
+    if (status === 503) {
+        return "The model server is still starting up — wait a few seconds and try again.";
+    }
+    return "Agent call failed";
+}
+
 export function createApp({ extensionId, maxContextChars }: AppConfig): Express {
     const app = express();
     app.use(express.json());
@@ -57,7 +71,7 @@ export function createApp({ extensionId, maxContextChars }: AppConfig): Express 
             res.json({ reply });
         } catch (error) {
             console.error("[ai-extension] agent call failed:", error);
-            res.status(500).json({ error: "Agent call failed" });
+            res.status(500).json({ error: describeAgentError(error) });
         }
     });
 
