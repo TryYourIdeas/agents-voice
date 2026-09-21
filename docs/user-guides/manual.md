@@ -136,10 +136,18 @@ UI does not currently expose a delete button.
 
 1. Click the "AI Page Assistant" toolbar icon to open the side panel.
 2. Optionally click **Use selection** (after highlighting text on the page) or **Use
-   page** to attach context — it appears as a chip above the input.
-3. Type a message (e.g. "critically review this") and press **Send**.
+   page** to attach context — it appears as a chip above the input. Neither button talks
+   to the server by itself; they only grab text locally.
+3. Type a message (e.g. "critically review this") and press **Send** — this is the only
+   step that sends anything to `ai-extension/server`.
 4. The attached context is cleared after each send; attach again for the next message if
    needed.
+
+If **Use selection**/**Use page** shows a red error instead of a chip, it'll say why. The
+extension requests broad `http(s)://*/*` host permissions (see
+[`config.md`](./config.md)) specifically so these buttons work reliably on any page —
+`activeTab` alone isn't sufficient once the click happens inside the side panel rather
+than directly on the toolbar icon.
 
 ```mermaid
 sequenceDiagram

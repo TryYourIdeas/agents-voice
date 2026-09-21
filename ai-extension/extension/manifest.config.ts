@@ -15,6 +15,13 @@ export default defineManifest({
     // -outform DER | base64 -w0`.
     key: "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAslSv2y80t0nnCZBuRw/sbXZImSQRyHo3n88c+1sI2k88AS7oCngXhvJbl6LRU7u5RQKPUDLKZG4ZVzTkvmgimR7FceXOVzeVo+7FBEc/IQgJFfziWBoRlE27akl52L1NUe99QsrtCqhYMSp/ixg14UpzqzRc3XPTGxQ2oanTPlpIstnGl2SAl8siA1CilgZDIUulz7Zs6629hzFOCsR8R+paUZFRQNdx1Nc+M+npxLnyMhrh+Md9ig6WxwbJVliHRSXyJPY7T7CGEYSqw7XsezCmuzFWMdwuyTKTSIRaYSUVX9S/ecMhfjiwtiY8l1YKlJzXPynb5ymCMiD2SP2/yQIDAQAB",
     permissions: ["sidePanel", "activeTab", "scripting", "storage"],
+    // activeTab alone isn't reliable here: it's a temporary grant tied to a
+    // direct user gesture on the toolbar icon, and Chrome doesn't extend
+    // that grant to button clicks made later inside the side panel — the
+    // "Use selection"/"Use page" buttons would then fail with "Cannot
+    // access contents of the page". Explicit host permissions make
+    // chrome.scripting.executeScript work regardless of gesture timing.
+    host_permissions: ["http://*/*", "https://*/*"],
     background: {
         service_worker: "src/background/service-worker.ts",
         type: "module",
