@@ -18,6 +18,11 @@ but its own independent instance — see
 - Requires `ANTHROPIC_API_KEY`, `ANTHROPIC_MODEL`, and `EXTENSION_ID` set (see `.env.example`)
   — `index.ts` throws at startup if `EXTENSION_ID` is missing, `agent.ts` throws if
   `ANTHROPIC_MODEL` is missing.
+- **No real Anthropic API key needed for local dev** — same pattern as `whatsap/.env`: set
+  `ANTHROPIC_BASE_URL=http://localhost:5050` (the repo's local `llama-server`) plus
+  placeholder `ANTHROPIC_API_KEY`/`ANTHROPIC_MODEL` values (e.g. `not-necessary`); the
+  Anthropic SDK reads `ANTHROPIC_BASE_URL` from the environment on its own, so `agent.ts`
+  needs no code change to point at it instead of the real API. See `.env.example`.
 
 ## Architecture
 

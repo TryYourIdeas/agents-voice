@@ -183,12 +183,24 @@ without an `nvidia-container-toolkit` runtime).
 |---|---|---|
 | `ANTHROPIC_API_KEY` | — (required) | Anthropic API key for the chat agent |
 | `ANTHROPIC_MODEL` | — (required) | Model id, e.g. `claude-sonnet-5` |
+| `ANTHROPIC_BASE_URL` | unset (real Anthropic API) | Set to `http://localhost:5050` to point at the repo's local `llama-server` instead — same pattern as `whatsap/.env`. The Anthropic SDK reads this env var itself, so no code change is needed; pair it with placeholder `ANTHROPIC_API_KEY`/`ANTHROPIC_MODEL` values (e.g. `not-necessary`) |
 | `EXTENSION_ID` | — (required) | The loaded extension's Chrome ID — restricts CORS to `chrome-extension://<id>` |
 | `PORT` | `4100` | HTTP port the server listens on |
 | `MAX_CONTEXT_CHARS` | `20000` | Max characters of attached page/selection text sent to the agent per message; longer text is truncated with a note |
 
 ### `ai-extension/extension`
 
-`manifest.config.ts`'s `key` field pins the extension's ID across rebuilds — generate your
-own (`openssl genrsa 2048 | openssl rsa -pubout`, base64-encode the DER public key) rather
-than using the placeholder, so `EXTENSION_ID` above doesn't need updating every build.
+`manifest.config.ts`'s `key` field pins the extension's ID across rebuilds — for unpacked
+extensions Chrome derives the ID purely from this public key, no private key or signing
+needed. The repo ships with a project-wide dev key already filled in, whose ID is always
+`kbemgcmgfjcmpfhfcpfgfpanaommfgco` (matches the default `EXTENSION_ID` in
+`ai-extension/server/.env.example`). To use your own instead:
+
+```bash
+openssl genrsa -out k.pem 2048
+openssl rsa -in k.pem -pubout -outform DER | base64 -w0
+```
+
+Paste the output into `manifest.config.ts`'s `key` field, then update `EXTENSION_ID` in
+`ai-extension/server/.env` to match (the ID is the first 16 bytes of the SHA-256 hash of the
+DER public key, with each nibble mapped to a letter `a`–`p`).

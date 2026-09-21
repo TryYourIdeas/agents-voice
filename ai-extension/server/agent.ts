@@ -21,6 +21,16 @@ const model = new ChatAnthropic({
     model: process.env.ANTHROPIC_MODEL,
     temperature: 0,
     maxRetries: 2,
+    // Same pattern as whatsap/shared.ts: the underlying Anthropic SDK reads
+    // ANTHROPIC_BASE_URL / ANTHROPIC_API_KEY from the environment on its own,
+    // so pointing this at the repo's local llama-server (ANTHROPIC_BASE_URL,
+    // placeholder ANTHROPIC_API_KEY/ANTHROPIC_MODEL — see .env.example) needs
+    // no code change here.
+    maxTokens: process.env.MAX_TOKENS ? Number(process.env.MAX_TOKENS) : undefined,
+    // A high maxTokens makes the Anthropic SDK require streaming (see
+    // whatsap/shared.ts for the same note); agent.invoke() below collects
+    // the stream into the same final result either way.
+    streaming: true,
 });
 
 const systemPrompt = readFileSync(new URL("./prompts/executer-system.md", import.meta.url), "utf-8");
