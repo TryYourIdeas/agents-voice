@@ -23,6 +23,7 @@
     "deepagents": "^1.10.2",
     "dotenv": "^17.4.2",
     "langchain": "^1.4.0",
+    "langchain-agent-kit": "file:../lib/langchain-agent-kit",
     "qrcode": "^1.5.4",
     "qrcode-terminal": "^0.12.0",
     "whatsapp-web.js": "^1.34.7",

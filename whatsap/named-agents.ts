@@ -5,11 +5,17 @@ import { z } from "zod";
 import { HumanMessage, SystemMessage } from "@langchain/core/messages";
 
 import { model, sharedTools, sharedCheckpointer } from "./shared.ts";
-import { createSkillMiddleware } from "./middleware/skill-middleware.ts";
 import { createMemoryMiddleware } from "./middleware/memory-middleware.ts";
-import { logModelCallMiddleware } from "./middleware/log-model-call-middleware.ts";
-import { parseFrontmatter, parseMetadataField, parseMetadataListField } from "./middleware/frontmatter.ts";
 import { extractText } from "./util.ts";
+import {
+    createSkillMiddleware,
+    createLogModelCallMiddleware,
+    parseFrontmatter,
+    parseMetadataField,
+    parseMetadataListField,
+} from "langchain-agent-kit";
+
+const logModelCallMiddleware = createLogModelCallMiddleware({ prefix: "[Middleware]" });
 
 // Named agents (whatsap/agents/<name>/agent.md) — each one is its own
 // createAgent instance per device (see agent.ts's getDefaultAgent for the
@@ -126,7 +132,7 @@ function getNamedAgent(deviceName: string, agentName: string): ReturnType<typeof
         checkpointer: sharedCheckpointer,
         systemPrompt: new SystemMessage(header.content),
         middleware: [
-            createSkillMiddleware([agentSkillsDir], header.allowedSkills),
+            createSkillMiddleware("./skills", { extraDirs: [agentSkillsDir], allowedSkills: header.allowedSkills }),
             createMemoryMiddleware(`devices/${deviceName}/memory`),
             logModelCallMiddleware,
         ],

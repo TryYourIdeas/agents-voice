@@ -5,7 +5,7 @@
 
 import { readFileSync, readdirSync, existsSync } from "node:fs";
 import path from "node:path";
-import { parseFrontmatter, parseMetadataField } from "../middleware/frontmatter.ts";
+import { parseFrontmatter, parseMetadataField } from "langchain-agent-kit";
 
 export const DEVICES_DIR = "./devices";
 

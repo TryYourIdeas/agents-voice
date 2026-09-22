@@ -3,14 +3,14 @@
 // File-backed storage for scheduled tasks, now scoped per device (see
 // docs/superpowers/specs/2026-09-08-multi-device-support-design.md). Each
 // active task is one file under devices/<device>/tasks/ — frontmatter +
-// body, parsed with the same middleware/frontmatter.ts used by
+// body, parsed with the same langchain-agent-kit frontmatter parsing used by
 // agent.md/SKILL.md. index.md files are regenerated display listings, not
 // a second source of truth — the *.md task files themselves are
 // authoritative for anything that reads task state.
 
 import { readFileSync, writeFileSync, readdirSync, existsSync, mkdirSync, unlinkSync } from "node:fs";
 import path from "node:path";
-import { parseFrontmatter, parseMetadataField } from "../middleware/frontmatter.ts";
+import { parseFrontmatter, parseMetadataField } from "langchain-agent-kit";
 
 export function tasksDir(device: string): string {
     return path.join("devices", device, "tasks");

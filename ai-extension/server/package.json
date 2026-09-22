@@ -19,6 +19,7 @@
     "dotenv": "^17.4.2",
     "express": "^4.21.2",
     "langchain": "^1.4.0",
+    "langchain-agent-kit": "file:../../lib/langchain-agent-kit",
     "zod": "^4.3.6"
   },
   "devDependencies": {

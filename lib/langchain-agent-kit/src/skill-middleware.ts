@@ -4,22 +4,19 @@ import fs from "node:fs";
 import path from "node:path";
 import { parseFrontmatter, parseMetadataField } from "./frontmatter.ts";
 
-// A skill that can be progressively disclosed to the agent
-const SkillSchema = z.object({
-  name: z.string(),  // Unique identifier for the skill
-  description: z.string(),  // 1-2 sentence description to show in system prompt
-  content: z.string(),  // Full skill content with detailed instructions
-});
+export interface Skill {
+    name: string;
+    description: string;
+    content: string;
+}
 
-type Skill = z.infer<typeof SkillSchema>;
-
-// Load skills (subdirectories containing a SKILL.md) from one directory.
+// Loads skills (subdirectories containing a SKILL.md) from one directory.
 // Returns [] for a directory that doesn't exist, since per-agent skills
 // directories (agents/<name>/skills) are optional — most agents won't have
 // one.
 function getSkillsFiles(directoryPath: string): Skill[] {
     if (!directoryPath) {
-        throw new Error('Directory path cannot be empty');
+        throw new Error("Directory path cannot be empty");
     }
 
     if (!fs.existsSync(directoryPath)) {
@@ -38,30 +35,29 @@ function getSkillsFiles(directoryPath: string): Skill[] {
         const fullPath = path.join(directoryPath, entry);
         const entryStat = fs.statSync(fullPath);
         if (entryStat.isDirectory()) {
-            files.push(fullPath + '/SKILL.md');
+            files.push(fullPath + "/SKILL.md");
         }
     }
 
     return files
         .filter((filePath) => fs.existsSync(filePath))
         .map((filePath) => {
-            const fileText = fs.readFileSync(filePath, 'utf-8');
+            const fileText = fs.readFileSync(filePath, "utf-8");
             const { metadata, content } = parseFrontmatter(fileText);
-            const name = parseMetadataField(metadata, 'name');
-            const description = parseMetadataField(metadata, 'description');
+            const name = parseMetadataField(metadata, "name");
+            const description = parseMetadataField(metadata, "description");
             if (!name || !description) {
                 throw new Error(`Invalid skill metadata in ${filePath}: missing name or description`);
             }
-            console.log(`Loaded skill: ${name}`);
             return { name, description, content };
         });
 }
 
-// Loads skills from './skills' (the global set every agent gets) plus any
+// Loads skills from skillsDir (the global set every agent gets) plus any
 // extra directories given — used to layer an agent-specific skills
 // directory (e.g. agents/<name>/skills) on top of the global ones.
-function loadSkills(extraDirs: string[] = []): Skill[] {
-    return [getSkillsFiles('./skills'), ...extraDirs.map(getSkillsFiles)].flat();
+export function loadSkills(skillsDir: string, extraDirs: string[] = []): Skill[] {
+    return [getSkillsFiles(skillsDir), ...extraDirs.map(getSkillsFiles)].flat();
 }
 
 function buildSkillMiddleware(skills: Skill[]) {
@@ -116,21 +112,21 @@ policies, and guidelines for the skill area.`,
     });
 }
 
-// Builds a skill middleware scoped to './skills' plus any extra directories
+// Builds a skill middleware scoped to skillsDir plus any extra directories
 // (e.g. an agent-specific agents/<name>/skills). Each call re-scans disk, so
-// callers should build once per agent and reuse — see named-agents.ts.
+// callers should build once per agent and reuse.
 //
-// allowedSkills, when given, restricts the result to only those skill names
-// (an agent.md's allowed-skills field) — e.g. so a coaching agent doesn't
-// also see unrelated global dev skills like git-tasks. Omit it for no
-// restriction (every discovered skill, the historical default).
-export function createSkillMiddleware(extraDirs: string[] = [], allowedSkills?: string[]) {
-    let skills = loadSkills(extraDirs);
-    if (allowedSkills) {
-        skills = skills.filter((s) => allowedSkills.includes(s.name));
+// opts.allowedSkills, when given, restricts the result to only those skill
+// names (an agent.md's allowed-skills field) — e.g. so a coaching agent
+// doesn't also see unrelated global dev skills like git-tasks. Omit it for
+// no restriction (every discovered skill, the historical default).
+export function createSkillMiddleware(
+    skillsDir: string = "./skills",
+    opts?: { extraDirs?: string[]; allowedSkills?: string[] }
+) {
+    let skills = loadSkills(skillsDir, opts?.extraDirs ?? []);
+    if (opts?.allowedSkills) {
+        skills = skills.filter((s) => opts.allowedSkills!.includes(s.name));
     }
     return buildSkillMiddleware(skills);
 }
-
-// The default agent's middleware — global skills only.
-export const skillMiddleware = createSkillMiddleware();

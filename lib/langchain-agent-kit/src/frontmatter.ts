@@ -23,10 +23,10 @@ export function parseFrontmatter(fileText: string): ParsedFrontmatter {
 // Extracts a single-line "field: value" from a metadata block. Strips a
 // single matching pair of wrapping quotes (single or double) if present —
 // this isn't a real YAML parser, but hand-edited files (e.g. scheduled task
-// files under tasks/, see lib/tasks.ts) naturally get YAML-style quoting
-// around values like cron expressions ("* * * * *"), and without this the
-// literal quote characters would flow through into consumers like
-// cron-parser and fail there instead.
+// files, agent.md, SKILL.md) naturally get YAML-style quoting around values
+// like cron expressions ("* * * * *"), and without this the literal quote
+// characters would flow through into consumers like cron-parser and fail
+// there instead.
 export function parseMetadataField(metadata: string, field: string): string | undefined {
     const line = metadata.split('\n').find((l) => l.trim().startsWith(`${field}:`));
     if (line === undefined) return undefined;

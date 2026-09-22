@@ -29,6 +29,9 @@ importers:
       langchain:
         specifier: ^1.4.0
         version: 1.5.11(@langchain/core@1.2.11)
+      langchain-agent-kit:
+        specifier: file:../../lib/langchain-agent-kit
+        version: file:../../lib/langchain-agent-kit
       zod:
         specifier: ^4.3.6
         version: 4.6.5
@@ -572,6 +575,9 @@ packages:
   json-schema-to-ts@3.1.1:
     resolution: {integrity: sha512-+DWg8jCJG2TEnpy7kOm/7/AxaYoaRbjVB4LFZLySZlWn8exGs3A4OLJR966cVvU26N7X9TWxl+Jsw7dzAqKT6g==}
     engines: {node: '>=16'}
+
+  langchain-agent-kit@file:../../lib/langchain-agent-kit:
+    resolution: {directory: ../../lib/langchain-agent-kit, type: directory}
 
   langchain@1.5.11:
     resolution: {integrity: sha512-6Sx9N5ylAJ11WrP1QnJLSIo75UABZbshzTJgG28H4mXuGcDk+w+7ZaNLkmGIh9sy/3PZcYS8UrI2rvH6A8NYIg==}
@@ -1500,6 +1506,20 @@ snapshots:
     dependencies:
       '@babel/runtime': 7.29.7
       ts-algebra: 2.0.0
+
+  langchain-agent-kit@file:../../lib/langchain-agent-kit:
+    dependencies:
+      '@langchain/core': 1.2.11
+      langchain: 1.5.11(@langchain/core@1.2.11)
+      zod: 4.6.5
+    transitivePeerDependencies:
+      - '@opentelemetry/api'
+      - '@opentelemetry/exporter-trace-otlp-proto'
+      - '@opentelemetry/sdk-trace-base'
+      - openai
+      - react
+      - react-dom
+      - ws
 
   langchain@1.5.11(@langchain/core@1.2.11):
     dependencies:
