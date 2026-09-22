@@ -10,8 +10,7 @@ import { writeFileTool } from "./tools/write-file.tool.ts";
 import { listDirectoryTool } from "./tools/list-directory.tool.ts";
 import { createDirectoryTool } from "./tools/create-directory.tool.ts";
 import { executeBashTool } from "./tools/execute-bash.tool.ts";
-import { skillMiddleware } from "./middleware/skill-middleware.ts";
-import { logModelCallMiddleware } from "./middleware/log-model-call-middleware.ts";
+import { createSkillMiddleware, createLogModelCallMiddleware } from "langchain-agent-kit";
 
 if (!process.env.ANTHROPIC_MODEL) {
     throw new Error("ANTHROPIC_MODEL environment variable is required (e.g. claude-sonnet-5)");
@@ -35,6 +34,8 @@ const model = new ChatAnthropic({
 
 const systemPrompt = readFileSync(new URL("./prompts/executer-system.md", import.meta.url), "utf-8");
 const checkpointer = new MemorySaver();
+const skillMiddleware = createSkillMiddleware("./skills");
+const logModelCallMiddleware = createLogModelCallMiddleware({ prefix: "[ai-extension]", truncate: 500 });
 
 const agent = createAgent({
     model,
