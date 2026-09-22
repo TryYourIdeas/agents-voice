@@ -131,3 +131,36 @@ UI does not currently expose a delete button.
   healthy (`docker compose ps`) — model loading can take a few minutes on first startup.
 - Switching the STT **Engine** to Qwen mid-session automatically resets **Task** to "Transcribe"; switch
   back to Whisper if you need translation.
+
+## Using ai-extension
+
+1. Click the "AI Page Assistant" toolbar icon to open the side panel.
+2. Optionally click **Use selection** (after highlighting text on the page) or **Use
+   page** to attach context — it appears as a chip above the input. Neither button talks
+   to the server by itself; they only grab text locally.
+3. Type a message (e.g. "critically review this") and press **Send** — this is the only
+   step that sends anything to `ai-extension/server`.
+4. The attached context is cleared after each send; attach again for the next message if
+   needed.
+
+If **Use selection**/**Use page** shows a red error instead of a chip, it'll say why. The
+extension requests broad `http(s)://*/*` host permissions (see
+[`config.md`](./config.md)) specifically so these buttons work reliably on any page —
+`activeTab` alone isn't sufficient once the click happens inside the side panel rather
+than directly on the toolbar icon.
+
+```mermaid
+sequenceDiagram
+    participant U as User
+    participant P as Side Panel
+    participant T as Active Tab
+    participant S as ai-extension/server
+
+    U->>P: Click "Use selection"
+    P->>T: chrome.scripting.executeScript
+    T-->>P: selected text
+    U->>P: Type message, click Send
+    P->>S: POST /api/chat {message, context, threadId}
+    S-->>P: {reply}
+    P-->>U: Render reply
+```

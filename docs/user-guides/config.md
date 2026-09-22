@@ -174,3 +174,48 @@ docker build --build-arg TORCH_INDEX_URL=https://download.pytorch.org/whl/cpu -t
 If you build CPU-only images, also remove or comment out the `deploy.resources.reservations.devices`
 block for that service in `docker-compose.yml` (it requests `nvidia` GPU devices and will fail to start
 without an `nvidia-container-toolkit` runtime).
+
+## `ai-extension`
+
+### `ai-extension/server` (`.env`)
+
+| Env var | Default | Purpose |
+|---|---|---|
+| `ANTHROPIC_API_KEY` | — (required) | Anthropic API key for the chat agent |
+| `ANTHROPIC_MODEL` | — (required) | Model id, e.g. `claude-sonnet-5` |
+| `ANTHROPIC_BASE_URL` | unset (real Anthropic API) | Set to `http://localhost:5050` to point at the repo's local `llama-server` instead — same pattern as `whatsap/.env`. The Anthropic SDK reads this env var itself, so no code change is needed; pair it with placeholder `ANTHROPIC_API_KEY`/`ANTHROPIC_MODEL` values (e.g. `not-necessary`) |
+| `EXTENSION_ID` | — (required) | The loaded extension's Chrome ID — restricts CORS to `chrome-extension://<id>` |
+| `PORT` | `4100` | HTTP port the server listens on |
+| `MAX_CONTEXT_CHARS` | `20000` | Max characters of attached page/selection text sent to the agent per message; longer text is truncated with a note |
+
+### Running `ai-extension/server` in Docker
+
+`docker-compose-whatsap.yml` has an `ai-extension-server` service alongside `whatsap` and
+`llama-server`, sharing the root `.env.whatsap-llama` file (so `ANTHROPIC_BASE_URL` is
+already `http://llama-server:5050` — the Docker service DNS name, not `localhost`, since
+containers don't share a loopback interface). `EXTENSION_ID`/`PORT`/`MAX_CONTEXT_CHARS` are
+set directly in the compose file's `environment:` block instead of a `.env`. Start it with:
+
+```bash
+docker compose -f docker-compose-whatsap.yml up -d llama-server ai-extension-server
+```
+
+Published on `http://localhost:4100` on the host either way, so the extension's `fetch`
+calls need no changes between the Docker and bare-Node setups.
+
+### `ai-extension/extension`
+
+`manifest.config.ts`'s `key` field pins the extension's ID across rebuilds — for unpacked
+extensions Chrome derives the ID purely from this public key, no private key or signing
+needed. The repo ships with a project-wide dev key already filled in, whose ID is always
+`kbemgcmgfjcmpfhfcpfgfpanaommfgco` (matches the default `EXTENSION_ID` in
+`ai-extension/server/.env.example`). To use your own instead:
+
+```bash
+openssl genrsa -out k.pem 2048
+openssl rsa -in k.pem -pubout -outform DER | base64 -w0
+```
+
+Paste the output into `manifest.config.ts`'s `key` field, then update `EXTENSION_ID` in
+`ai-extension/server/.env` to match (the ID is the first 16 bytes of the SHA-256 hash of the
+DER public key, with each nibble mapped to a letter `a`–`p`).

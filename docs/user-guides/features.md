@@ -68,3 +68,14 @@ to how you record or upload audio.
 - **Model & voice persistence** across container restarts via the `models/` and `voices/` bind mounts.
 - **GPU or CPU** — every backend service can run on an NVIDIA GPU (default) or be rebuilt for CPU-only
   inference via a Docker build arg.
+
+## ai-extension
+
+A Chrome side-panel extension for chatting with an AI agent about the page you're browsing:
+
+- **Use selection** — attaches the currently selected text on the page as context.
+- **Use page** — attaches the whole page's visible text as context.
+- Chat with per-session memory (the conversation continues across turns within one side
+  panel session).
+- The agent can critically review attached text (arguments, evidence, clarity, bias) via
+  its `critique-text` skill, or answer general questions.
