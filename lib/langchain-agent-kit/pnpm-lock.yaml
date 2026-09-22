@@ -11,6 +11,9 @@ importers:
       '@langchain/core':
         specifier: ^1.2.9
         version: 1.2.12
+      '@langchain/tavily':
+        specifier: ^1.2.0
+        version: 1.2.0(@langchain/core@1.2.12)
       langchain:
         specifier: ^1.4.0
         version: 1.5.11(@langchain/core@1.2.12)
@@ -74,6 +77,12 @@ packages:
 
   '@langchain/protocol@0.0.19':
     resolution: {integrity: sha512-9hKcRrH7cBX6gfutdfXPoft1OCchHe4FEpALoDJMl5Qu+n/YG5ynZmyu8+8cxORlPwHBoKTxggvXz+76M1yX1Q==}
+
+  '@langchain/tavily@1.2.0':
+    resolution: {integrity: sha512-aPLPgtw8+b/Rnr3H+X8H8z98T/Y7JuCE4B5eqRDHoEWgZvMDUFF7divqwQqCTMq2deQttlVrm5bN5JbKaAR7/w==}
+    engines: {node: '>=20'}
+    peerDependencies:
+      '@langchain/core': ^1.0.0
 
   '@oxc-project/types@0.150.0':
     resolution: {integrity: sha512-rDS5/31E9HfPl/CIzGrn0DOlvBbXFseQ5URJ9sYMfstbKLD/c6Gm9vmRzRGDdAXyOIL4zmO37lc9RIwYqVruZw==}
@@ -596,6 +605,11 @@ snapshots:
       - react-dom
 
   '@langchain/protocol@0.0.19': {}
+
+  '@langchain/tavily@1.2.0(@langchain/core@1.2.12)':
+    dependencies:
+      '@langchain/core': 1.2.12
+      zod: 4.6.5
 
   '@oxc-project/types@0.150.0': {}
 

@@ -20,9 +20,6 @@ importers:
       '@langchain/ollama':
         specifier: ^1.2.7
         version: 1.2.7(@langchain/core@1.2.9(ws@8.21.3))
-      '@langchain/tavily':
-        specifier: ^1.2.0
-        version: 1.2.0(@langchain/core@1.2.9(ws@8.21.3))
       cron-parser:
         specifier: ^5.10.0
         version: 5.10.0
@@ -2186,6 +2183,7 @@ snapshots:
   langchain-agent-kit@file:../lib/langchain-agent-kit(ws@8.21.3):
     dependencies:
       '@langchain/core': 1.2.9(ws@8.21.3)
+      '@langchain/tavily': 1.2.0(@langchain/core@1.2.9(ws@8.21.3))
       langchain: 1.4.0(@langchain/core@1.2.9(ws@8.21.3))(ws@8.21.3)
       zod: 4.3.6
     transitivePeerDependencies:

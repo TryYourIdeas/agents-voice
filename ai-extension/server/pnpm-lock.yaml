@@ -124,6 +124,12 @@ packages:
   '@langchain/protocol@0.0.19':
     resolution: {integrity: sha512-9hKcRrH7cBX6gfutdfXPoft1OCchHe4FEpALoDJMl5Qu+n/YG5ynZmyu8+8cxORlPwHBoKTxggvXz+76M1yX1Q==}
 
+  '@langchain/tavily@1.2.0':
+    resolution: {integrity: sha512-aPLPgtw8+b/Rnr3H+X8H8z98T/Y7JuCE4B5eqRDHoEWgZvMDUFF7divqwQqCTMq2deQttlVrm5bN5JbKaAR7/w==}
+    engines: {node: '>=20'}
+    peerDependencies:
+      '@langchain/core': ^1.0.0
+
   '@noble/hashes@1.8.0':
     resolution: {integrity: sha512-jCs9ldd7NwzpgXDIf6P3+NrHh9/sD6CQdxHyjQI+h/6rDNo88ypBxxz45UDuZHz9r3tNz7N/VInSVoVdtXEI4A==}
     engines: {node: ^14.21.3 || >=16}
@@ -1085,6 +1091,11 @@ snapshots:
 
   '@langchain/protocol@0.0.19': {}
 
+  '@langchain/tavily@1.2.0(@langchain/core@1.2.11)':
+    dependencies:
+      '@langchain/core': 1.2.11
+      zod: 4.6.5
+
   '@noble/hashes@1.8.0': {}
 
   '@oxc-project/types@0.150.0': {}
@@ -1510,6 +1521,7 @@ snapshots:
   langchain-agent-kit@file:../../lib/langchain-agent-kit:
     dependencies:
       '@langchain/core': 1.2.11
+      '@langchain/tavily': 1.2.0(@langchain/core@1.2.11)
       langchain: 1.5.11(@langchain/core@1.2.11)
       zod: 4.6.5
     transitivePeerDependencies:

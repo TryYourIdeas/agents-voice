@@ -22,7 +22,9 @@ independent-copy rationale, which still applies to those).
 - Test: `pnpm test` (`vitest run`) / `pnpm test:watch`
 - Requires `ANTHROPIC_API_KEY`, `ANTHROPIC_MODEL`, and `EXTENSION_ID` set (see `.env.example`)
   — `index.ts` throws at startup if `EXTENSION_ID` is missing, `agent.ts` throws if
-  `ANTHROPIC_MODEL` is missing.
+  `ANTHROPIC_MODEL` is missing. `TAVILY_API_KEY` is also required for the `web_search` tool,
+  but isn't validated at startup — a missing key only surfaces as an error when the agent
+  actually calls that tool.
 - **No real Anthropic API key needed for local dev** — same pattern as `whatsap/.env`: set
   `ANTHROPIC_BASE_URL=http://localhost:5050` (the repo's local `llama-server`) plus
   placeholder `ANTHROPIC_API_KEY`/`ANTHROPIC_MODEL` values (e.g. `not-necessary`); the
@@ -38,9 +40,10 @@ independent-copy rationale, which still applies to those).
 
 ## Architecture
 
-- `agent.ts` — the LangChain agent: `ChatAnthropic` model, file/directory/bash tools,
-  `createSkillMiddleware`/`createLogModelCallMiddleware` (from `langchain-agent-kit`),
-  `MemorySaver` checkpointer keyed by the `threadId` the extension sends.
+- `agent.ts` — the LangChain agent: `ChatAnthropic` model, file/directory/bash tools, a
+  Tavily-backed `web_search` tool, `createSkillMiddleware`/`createLogModelCallMiddleware`
+  (from `langchain-agent-kit`), `MemorySaver` checkpointer keyed by the `threadId` the
+  extension sends.
 - `context.ts` — formats/truncates page-selection or full-page-text context (from the
   extension) into the block prepended to the user's message.
 - `http.ts` — `createApp()` builds the Express app: CORS restricted to

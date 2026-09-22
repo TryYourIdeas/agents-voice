@@ -10,6 +10,7 @@ import { writeFileTool } from "./tools/write-file.tool.ts";
 import { listDirectoryTool } from "./tools/list-directory.tool.ts";
 import { createDirectoryTool } from "./tools/create-directory.tool.ts";
 import { executeBashTool } from "./tools/execute-bash.tool.ts";
+import { webSearchTool } from "./tools/web-search.tool.ts";
 import { createSkillMiddleware, createLogModelCallMiddleware } from "langchain-agent-kit";
 
 if (!process.env.ANTHROPIC_MODEL) {
@@ -39,7 +40,7 @@ const logModelCallMiddleware = createLogModelCallMiddleware({ prefix: "[ai-exten
 
 const agent = createAgent({
     model,
-    tools: [readFileTool, writeFileTool, listDirectoryTool, createDirectoryTool, executeBashTool],
+    tools: [readFileTool, writeFileTool, listDirectoryTool, createDirectoryTool, executeBashTool, webSearchTool],
     checkpointer,
     systemPrompt: new SystemMessage(systemPrompt),
     middleware: [skillMiddleware, logModelCallMiddleware],
