@@ -7,8 +7,13 @@ Guidance for Claude Code when working in `ai-extension/server`.
 A local Express HTTP server wrapping a LangChain `createAgent` + `ChatAnthropic` agent —
 the backend for the `ai-extension` Chrome extension's side-panel chat. Same agent shape as
 `whatsap/agent.ts` (file/directory/bash tools, skill-middleware, `MemorySaver` checkpointer)
-but its own independent instance — see
-`docs/superpowers/specs/2026-09-19-ai-extension-design.md` for why.
+but its own independent `createAgent` instance. Its skill-middleware, frontmatter parsing,
+and model-call logging now come from the shared `langchain-agent-kit` package
+(`lib/langchain-agent-kit/`, also consumed by `whatsap`) rather than being separate
+copies — see `docs/superpowers/specs/2026-09-22-langchain-agent-kit-extraction-design.md`.
+The file/directory/bash tools themselves remain this project's own (see
+`docs/superpowers/specs/2026-09-19-ai-extension-design.md` for the original
+independent-copy rationale, which still applies to those).
 
 ## Commands
 
@@ -26,22 +31,24 @@ but its own independent instance — see
 - **Docker**: `Dockerfile` builds this service for `docker-compose-whatsap.yml`'s
   `ai-extension-server`, which shares `.env.whatsap-llama` with `whatsap`/`llama-server` (so
   `ANTHROPIC_BASE_URL` there is already `http://llama-server:5050`, the Docker service DNS
-  name — not `localhost`, since containers don't share a loopback). Run:
-  `docker compose -f docker-compose-whatsap.yml up -d llama-server ai-extension-server`.
+  name — not `localhost`, since containers don't share a loopback). The build context is the
+  repo root, not this directory (`context: .` in `docker-compose-whatsap.yml`), so the
+  Dockerfile can also copy in `lib/langchain-agent-kit` (this project's `file:` dependency).
+  Run: `docker compose -f docker-compose-whatsap.yml up -d llama-server ai-extension-server`.
 
 ## Architecture
 
 - `agent.ts` — the LangChain agent: `ChatAnthropic` model, file/directory/bash tools,
-  `skillMiddleware`, `logModelCallMiddleware`, `MemorySaver` checkpointer keyed by the
-  `threadId` the extension sends.
+  `createSkillMiddleware`/`createLogModelCallMiddleware` (from `langchain-agent-kit`),
+  `MemorySaver` checkpointer keyed by the `threadId` the extension sends.
 - `context.ts` — formats/truncates page-selection or full-page-text context (from the
   extension) into the block prepended to the user's message.
 - `http.ts` — `createApp()` builds the Express app: CORS restricted to
   `chrome-extension://<EXTENSION_ID>`, `GET /health`, `POST /api/chat`.
 - `tools/*.tool.ts` — LangChain tools, paths resolved against this server's own working
   directory (not the whole repo).
-- `middleware/skill-middleware.ts` + `skills/*/SKILL.md` — progressive-disclosure skill
-  system, same pattern as whatsap's own (own copy, not shared).
+- `skills/*/SKILL.md` — content for the shared `createSkillMiddleware`'s (from
+  `langchain-agent-kit`) progressive-disclosure skill system.
 
 ## Security note
 
