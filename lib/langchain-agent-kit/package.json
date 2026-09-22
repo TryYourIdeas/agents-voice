@@ -1,0 +1,22 @@
+{
+    "name": "langchain-agent-kit",
+    "version": "1.0.0",
+    "description": "Shared LangChain agent building blocks for whatsap and ai-extension/server: frontmatter parsing, skill middleware, and model-call logging.",
+    "type": "module",
+    "exports": {
+        ".": "./src/index.ts"
+    },
+    "scripts": {
+        "test": "vitest run",
+        "test:watch": "vitest"
+    },
+    "dependencies": {
+        "langchain": "^1.4.0",
+        "@langchain/core": "^1.2.9",
+        "zod": "^4.3.6"
+    },
+    "devDependencies": {
+        "typescript": "^5.7.2",
+        "vitest": "^5.0.0"
+    }
+}
