@@ -1,8 +1,10 @@
-# Root build context is only used by llama-server/Dockerfile (CPU) and
-# llama-server/Dockerfile.gpu (GPU), which need llama/ or llama-gpu/,
-# model-qwen3.5/, and start-llama-server.sh or start-llama-server-gpu.sh.
-# Everything else here would otherwise be sent to the Docker daemon as build
-# context for no reason.
+# Root build context is used by llama-server/Dockerfile (CPU) and
+# llama-server/Dockerfile.gpu (GPU) — needs llama/, llama-gpu/,
+# model-qwen3.5/, start-llama-server*.sh — and by whatsap/Dockerfile and
+# ai-extension/server/Dockerfile, which additionally need lib/ (the shared
+# langchain-agent-kit package their file: dependency resolves against).
+# Everything else here would otherwise be sent to the Docker daemon as
+# build context for no reason.
 *
 !llama/
 !llama/**
@@ -12,3 +14,29 @@
 !model-qwen3.5/**
 !start-llama-server.sh
 !start-llama-server-gpu.sh
+
+!whatsap/**
+whatsap/node_modules
+whatsap/node_modules/**
+whatsap/.env
+whatsap/.env.*
+whatsap/.git
+whatsap/.wwebjs_cache
+whatsap/devices
+whatsap/devices/**
+whatsap/new-devices
+whatsap/new-devices/**
+whatsap/logs*.txt
+whatsap/*.md
+!whatsap/README.md
+
+!ai-extension/server/**
+ai-extension/server/node_modules
+ai-extension/server/node_modules/**
+ai-extension/server/.env
+ai-extension/server/.env.*
+ai-extension/server/*.test.ts
+
+!lib/**
+lib/**/node_modules
+lib/**/node_modules/**

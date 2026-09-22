@@ -36,7 +36,9 @@ name: agents-voice-whatsap
 
 services:
   whatsap:
-    build: ./whatsap
+    build:
+      context: .
+      dockerfile: whatsap/Dockerfile
     image: agents-voice-whatsap:latest
     env_file:
       - ./.env.whatsap-llama
@@ -72,7 +74,9 @@ services:
     restart: unless-stopped
 
   ai-extension-server:
-    build: ./ai-extension/server
+    build:
+      context: .
+      dockerfile: ai-extension/server/Dockerfile
     image: ai-extension-server:latest
     env_file:
       # Same file whatsap/llama-server use — ANTHROPIC_BASE_URL already

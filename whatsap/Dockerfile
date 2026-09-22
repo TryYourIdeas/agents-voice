@@ -1,3 +1,7 @@
+# Build context is the repo root (see docker-compose-whatsap.yml's
+# `context: .`) so this Dockerfile can also copy in lib/langchain-agent-kit,
+# a sibling package this project's package.json depends on via `file:`.
+#
 # Node v26 is required: this repo has no build step and runs .ts files
 # directly via Node's native TypeScript support (see CLAUDE.md / README.md).
 FROM node:26-slim
@@ -26,10 +30,16 @@ RUN npm install -g corepack@latest && corepack enable && corepack prepare pnpm@1
 
 WORKDIR /app
 
-COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
+# Build context is now the repo root (see docker-compose-whatsap.yml), so
+# langchain-agent-kit is copied to /lib — this package's own
+# "file:../lib/langchain-agent-kit" dependency then resolves against it
+# exactly like it does on disk, where whatsap/ and lib/ are sibling
+# directories under the repo root.
+COPY lib/langchain-agent-kit /lib/langchain-agent-kit
+COPY whatsap/package.json whatsap/pnpm-lock.yaml whatsap/pnpm-workspace.yaml ./
 RUN pnpm install --frozen-lockfile
 
-COPY . .
+COPY whatsap/ .
 RUN chmod +x docker-entrypoint.sh
 
 # session/ (WhatsApp LocalAuth credentials) and logs*.txt are meant to

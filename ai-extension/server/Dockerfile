@@ -1,3 +1,7 @@
+# Build context is the repo root (see docker-compose-whatsap.yml's
+# `context: .`) so this Dockerfile can also copy in lib/langchain-agent-kit,
+# a sibling package this project's package.json depends on via `file:`.
+#
 # Node v26 is required: no build step, .ts files run directly via Node's
 # native TypeScript support (same convention as whatsap/Dockerfile).
 FROM node:26-slim
@@ -14,10 +18,16 @@ RUN npm install -g corepack@latest && corepack enable && corepack prepare pnpm@1
 
 WORKDIR /app
 
-COPY package.json pnpm-lock.yaml ./
+# langchain-agent-kit is copied to /lib — this package's
+# "file:../../lib/langchain-agent-kit" dependency resolves against it the
+# same way it does on disk (ai-extension/server -> ai-extension -> repo
+# root -> lib): path resolution above the filesystem root clamps to root,
+# so both this and whatsap's single-".." path land on the same /lib.
+COPY lib/langchain-agent-kit /lib/langchain-agent-kit
+COPY ai-extension/server/package.json ai-extension/server/pnpm-lock.yaml ./
 RUN pnpm install --frozen-lockfile
 
-COPY . .
+COPY ai-extension/server/ .
 
 # Non-root container user — this server has file/bash tool access (see
 # CLAUDE.md's Security note), so it shouldn't also run as root.
