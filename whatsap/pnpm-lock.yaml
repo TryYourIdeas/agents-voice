@@ -35,6 +35,9 @@ importers:
       langchain:
         specifier: ^1.4.0
         version: 1.4.0(@langchain/core@1.2.9(ws@8.21.3))(ws@8.21.3)
+      langchain-agent-kit:
+        specifier: file:../lib/langchain-agent-kit
+        version: file:../lib/langchain-agent-kit(ws@8.21.3)
       qrcode:
         specifier: ^1.5.4
         version: 1.5.4
@@ -777,6 +780,9 @@ packages:
 
   jsonfile@6.2.1:
     resolution: {integrity: sha512-zwOTdL3rFQ/lRdBnntKVOX6k5cKJwEc1HdilT71BWEu7J41gXIB2MRp+vxduPSwZJPWBxEzv4yH1wYLJGUHX4Q==}
+
+  langchain-agent-kit@file:../lib/langchain-agent-kit:
+    resolution: {directory: ../lib/langchain-agent-kit, type: directory}
 
   langchain@1.4.0:
     resolution: {integrity: sha512-p3H5U1vfO0T4ri/xxqI6jccRP3LYmOW6KGxaJcwI5mIGVR/G6eNhZyjSZB9d7me6J7an4Pc6zA8tH8Qa6/7xwA==}
@@ -2176,6 +2182,23 @@ snapshots:
     optionalDependencies:
       graceful-fs: 4.2.11
     optional: true
+
+  langchain-agent-kit@file:../lib/langchain-agent-kit(ws@8.21.3):
+    dependencies:
+      '@langchain/core': 1.2.9(ws@8.21.3)
+      langchain: 1.4.0(@langchain/core@1.2.9(ws@8.21.3))(ws@8.21.3)
+      zod: 4.3.6
+    transitivePeerDependencies:
+      - '@opentelemetry/api'
+      - '@opentelemetry/exporter-trace-otlp-proto'
+      - '@opentelemetry/sdk-trace-base'
+      - openai
+      - react
+      - react-dom
+      - svelte
+      - vue
+      - ws
+      - zod-to-json-schema
 
   langchain@1.4.0(@langchain/core@1.2.9(ws@8.21.3))(ws@8.21.3):
     dependencies:

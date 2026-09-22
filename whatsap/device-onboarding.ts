@@ -9,7 +9,7 @@
 
 import { readFileSync, readdirSync, existsSync, mkdirSync, writeFileSync, unlinkSync } from "node:fs";
 import path from "node:path";
-import { parseFrontmatter, parseMetadataField } from "./middleware/frontmatter.ts";
+import { parseFrontmatter, parseMetadataField } from "langchain-agent-kit";
 import { DEVICES_DIR, validateDeviceName, type DeviceConfig } from "./lib/devices.ts";
 
 const NEW_DEVICES_DIR = "./new-devices";
