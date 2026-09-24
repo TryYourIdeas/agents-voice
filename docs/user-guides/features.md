@@ -129,11 +129,16 @@ agent backed by Anthropic's Messages API (or the local `llama-server`, see `conf
 A small Nuxt web UI (`http://localhost:3003`) for managing `whatsap`'s linked devices without
 needing a terminal:
 
-- **List devices** — name, label, and live connection status (`pending` / `connected` / etc.).
+- **List devices** — name, label, and live connection status (`pending` / `connected` /
+  `disconnected`).
 - **Add a device** — name (lowercase letters/numbers/dashes) + a display label; creates a pending
   device request picked up by `whatsap`'s onboarding poller with no restart needed.
 - **QR pairing page** — shows the device's live QR code (refreshable) until it's scanned, then
-  flips to a "Connected" state automatically (polls status every 2 seconds).
+  flips to a "Connected" state automatically (polls status every 2 seconds). If the QR isn't
+  scanned within about a minute, the device gives up and flips to "Disconnected" instead of
+  sitting on a stale code indefinitely.
+- **Reconnect button** — on a disconnected device, one click either reconnects silently (if its
+  session is still valid) or shows a fresh QR code to re-scan.
 
 ## Local LLM server (`llama-server`)
 

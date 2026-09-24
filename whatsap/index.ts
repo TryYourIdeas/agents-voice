@@ -6,7 +6,7 @@
 // poller running so new devices can come online without a restart — see
 // docs/superpowers/specs/2026-09-08-multi-device-support-design.md.
 
-import { createDeviceBot } from './bot.ts'
+import { createDeviceBot, reconnectDevice } from './bot.ts'
 import { listDeviceNames, readDevice, type DeviceConfig } from './lib/devices.ts'
 import { pickUpPendingDevices, startDeviceOnboardingPoller } from './device-onboarding.ts'
 import { startScheduler, type DeviceHandle } from './scheduler.ts'
@@ -47,6 +47,24 @@ function bootDevice(device: DeviceConfig): void {
     activeDevices.push({ name: device.name, client });
 }
 
+// Called from internal-api.ts's POST /api/devices/:name/reconnect (e.g. the
+// devices-ui "Reconnect" button on a disconnected device). Updates the
+// existing DeviceHandle in place — scheduler.ts closes over this same
+// `activeDevices` array, so it picks up the new client on its very next
+// poll tick without any extra wiring, same as a newly onboarded device.
+async function reconnectDeviceByName(name: string): Promise<boolean> {
+    const device = readDevice(name);
+    if (!device) return false;
+    const client = await reconnectDevice(device);
+    const handle = activeDevices.find((d) => d.name === name);
+    if (handle) {
+        handle.client = client;
+    } else {
+        activeDevices.push({ name, client });
+    }
+    return true;
+}
+
 // Recover anything left over from a prior restart before processing
 // already-onboarded devices, so both paths converge on the same
 // bootDevice()/createDeviceBot() call before the scheduler starts.
@@ -59,4 +77,4 @@ for (const name of listDeviceNames()) {
 
 startScheduler(activeDevices);
 startDeviceOnboardingPoller(bootDevice);
-startInternalApi();
+startInternalApi(reconnectDeviceByName);
