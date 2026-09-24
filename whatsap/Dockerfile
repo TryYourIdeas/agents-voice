@@ -35,7 +35,19 @@ WORKDIR /app
 # "file:../lib/langchain-agent-kit" dependency then resolves against it
 # exactly like it does on disk, where whatsap/ and lib/ are sibling
 # directories under the repo root.
+#
+# pnpm's "file:" protocol packs the target directory into node_modules
+# rather than symlinking back to it, so whatever's on disk here (including
+# raw .ts source) ends up physically inside node_modules. Node's native TS
+# type-stripping refuses to strip types for anything under node_modules
+# (ERR_UNSUPPORTED_NODE_MODULES_TYPE_STRIPPING, no override flag exists),
+# so the shared lib must be pre-compiled to plain JS before the "file:"
+# dependency is packed — hence `npm run build` here before `pnpm install`.
 COPY lib/langchain-agent-kit /lib/langchain-agent-kit
+# --include=dev overrides this Dockerfile's NODE_ENV=production (set above),
+# which would otherwise make npm skip the "typescript" devDependency this
+# build needs.
+RUN npm --prefix /lib/langchain-agent-kit install --include=dev && npm --prefix /lib/langchain-agent-kit run build
 COPY whatsap/package.json whatsap/pnpm-lock.yaml whatsap/pnpm-workspace.yaml ./
 RUN pnpm install --frozen-lockfile
 

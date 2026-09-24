@@ -17,7 +17,7 @@ independent-copy rationale, which still applies to those).
 
 ## Commands
 
-- Install: `pnpm install`
+- Install: `(cd ../../lib/langchain-agent-kit && npm install && npm run build) && pnpm install` — the `langchain-agent-kit` build step is required — its `file:` dependency is packed by pnpm into `node_modules` as a real copy (not a symlink back to `lib/`), and Node's native TS type-stripping refuses to strip types for anything under `node_modules`, so the shared lib must already be compiled to `dist/*.js` before `pnpm install` packs it.
 - Run: `node index.ts` (no build step, Node native TS execution)
 - Test: `pnpm test` (`vitest run`) / `pnpm test:watch`
 - Requires `ANTHROPIC_API_KEY`, `ANTHROPIC_MODEL`, and `EXTENSION_ID` set (see `.env.example`)
