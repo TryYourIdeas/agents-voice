@@ -13,13 +13,35 @@ import path from 'path'
 import { callAgent, callNamedAgent, listAvailableAgents, clearSession } from './agent.ts'
 import { sendAgentResponse } from './lib/send-agent-response.ts'
 import { archiveTask, tasksDir } from './lib/tasks.ts'
-import { setWhatsAppClient } from './lib/whatsapp-client.ts'
-import { setDeviceStatus } from './lib/device-status.ts'
+import { setWhatsAppClient, tryGetWhatsAppClient } from './lib/whatsapp-client.ts'
+import { setDeviceStatus, getDeviceStatus } from './lib/device-status.ts'
 import type { DeviceConfig } from './lib/devices.ts'
 import { downloadMessageMedia, transcribeAudio, resolveIncomingMedia } from './lib/message-media.ts'
 import type { MessageContent } from "@langchain/core/messages"
 
 const { Client, LocalAuth } = whatsapp
+
+// How long a device is allowed to sit in 'pending' (QR shown, not yet
+// scanned) before we give up and mark it 'disconnected'. whatsapp-web.js
+// keeps auto-refreshing the QR (a fresh 'qr' event roughly every time the
+// old code expires) for as long as the client stays alive, so without this
+// a device the user never gets back to would sit "pending" forever.
+const QR_PENDING_TIMEOUT_MS = 60_000;
+
+// One pending-timeout timer per device, keyed by device name — reset
+// (cleared, not restarted) on 'ready'/'disconnected' so a stale timer can't
+// clobber a status that has since moved on. Deliberately *not* reset on
+// every 'qr' event: the cap is "1 minute since the QR was first shown",
+// not "1 minute since the most recent auto-refresh".
+const qrPendingTimeouts = new Map<string, ReturnType<typeof setTimeout>>();
+
+function clearQrPendingTimeout(deviceName: string): void {
+    const timeout = qrPendingTimeouts.get(deviceName);
+    if (timeout) {
+        clearTimeout(timeout);
+        qrPendingTimeouts.delete(deviceName);
+    }
+}
 
 // Chats whose voice notes get transcribed and forwarded to the default agent
 // automatically, without needing an "@ai" prefix (voice notes have no text
@@ -95,6 +117,7 @@ export function createDeviceBot(device: DeviceConfig): any {
 
     client.on('ready', () => {
         console.log(`[${deviceName}] Client is ready!`);
+        clearQrPendingTimeout(deviceName);
         setDeviceStatus(deviceName, { state: 'connected' });
     });
 
@@ -106,6 +129,27 @@ export function createDeviceBot(device: DeviceConfig): any {
         console.log(`[${deviceName}] scan this QR code:`);
         qrcode.generate(qr, { small: true });
         setDeviceStatus(deviceName, { state: 'pending', qr });
+
+        // Only start the countdown the *first* time this device goes
+        // pending — see qrPendingTimeouts' comment above for why a
+        // subsequent auto-refreshed 'qr' doesn't restart it.
+        if (!qrPendingTimeouts.has(deviceName)) {
+            const timeout = setTimeout(() => {
+                qrPendingTimeouts.delete(deviceName);
+                // Only act if still pending — a 'ready'/'disconnected' that
+                // fired just before this timer should win, not get
+                // clobbered by a timer that was about to fire anyway.
+                if (getDeviceStatus(deviceName)?.state !== 'pending') return;
+                console.log(`[${deviceName}] QR not scanned within ${QR_PENDING_TIMEOUT_MS}ms, giving up`);
+                setDeviceStatus(deviceName, { state: 'disconnected' });
+                try {
+                    client.destroy();
+                } catch (err) {
+                    console.error(`[${deviceName}] failed to destroy client after QR timeout:`, err);
+                }
+            }, QR_PENDING_TIMEOUT_MS);
+            qrPendingTimeouts.set(deviceName, timeout);
+        }
     });
 
     // Visibility into the connection lifecycle beyond just 'qr'/'ready' —
@@ -125,6 +169,7 @@ export function createDeviceBot(device: DeviceConfig): any {
     });
     client.on('disconnected', (reason) => {
         console.log(`[${deviceName}] [diag] disconnected:`, reason);
+        clearQrPendingTimeout(deviceName);
         setDeviceStatus(deviceName, { state: 'disconnected' });
     });
 
@@ -329,7 +374,35 @@ export function createDeviceBot(device: DeviceConfig): any {
     // that would take every other device down too, not just this one.
     client.initialize().catch((err: unknown) => {
         console.error(`[${deviceName}] client.initialize() failed:`, err);
+        clearQrPendingTimeout(deviceName);
         setDeviceStatus(deviceName, { state: 'disconnected' });
     });
     return client;
+}
+
+// Tears down a device's existing client (if any — 'disconnected' devices
+// still have one sitting idle) and starts a fresh one via createDeviceBot,
+// which re-registers it (setWhatsAppClient) and re-wires every event
+// handler above. Reusing the same on-disk LocalAuth session directory
+// (createDeviceBot always points at devices/<name>/session): if that
+// session is still valid (e.g. the disconnect was a transient network
+// blip), the client reconnects straight to 'ready' with no new QR; if
+// WhatsApp actually logged the device out, a fresh 'qr' event fires and
+// the caller sees this device go back to 'pending' as normal.
+export async function reconnectDevice(device: DeviceConfig): Promise<any> {
+    const deviceName = device.name;
+    clearQrPendingTimeout(deviceName);
+    const existing = tryGetWhatsAppClient(deviceName);
+    if (existing) {
+        try {
+            // Awaited (destroy() is async, closing the underlying Puppeteer
+            // browser) so the new client below doesn't launch Chromium
+            // against the same LocalAuth session directory while the old
+            // browser instance is still shutting down.
+            await existing.destroy();
+        } catch (err) {
+            console.error(`[${deviceName}] failed to destroy existing client before reconnect:`, err);
+        }
+    }
+    return createDeviceBot(device);
 }

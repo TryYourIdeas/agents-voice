@@ -1,5 +1,22 @@
 # Changes
 
+## 2026-09-24 — Add a Reconnect button and a QR-scan timeout to `devices-ui`
+
+A disconnected device previously had no way to recover short of restarting the whole `whatsap`
+container — added a **Reconnect** button (`devices-ui`'s device page → `POST
+/api/devices/:name/reconnect` → `whatsap`'s new internal-API route → `bot.ts`'s new
+`reconnectDevice`, which tears down the old client and starts a fresh one against the same
+on-disk session). Also, a device sitting on an unscanned QR code no longer stays `pending`
+forever: `bot.ts` now starts a one-time 60s timer on the first `qr` event per connection
+attempt and flips the device to `disconnected` if it's still pending when that timer fires.
+
+While wiring this up, found that `whatsap/.gitignore`'s unanchored `devices` pattern was
+matching *any* directory named `devices` anywhere in the tree, not just the intended
+`whatsap/devices/` runtime data — it had been silently excluding `devices-ui`'s own
+`pages/devices/` and `server/api/devices/` subtrees from git the whole time (the "Add
+Device"/QR-pairing UI and its `qr.png` API route existed only on disk, never committed).
+Anchored it to `/devices` and committed the previously-untracked files.
+
 ## 2026-09-24 — Document `whatsap`, `devices-ui`, `llama-server`, and `plantuml-renderer` in the user guides
 
 `docs/user-guides/config.md`, `features.md`, and `manual.md` covered the voice-AI stack

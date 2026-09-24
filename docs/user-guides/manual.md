@@ -166,7 +166,7 @@ A "device" is one WhatsApp account/phone linked to the bot; you can link more th
 
 1. Open **http://localhost:3003** (the `devices-ui` service).
 2. The device list shows every linked device with its name, label, and status
-   (`pending` / `connected`).
+   (`pending` / `connected` / `disconnected`).
 3. To add one: fill in **Name** (lowercase letters, numbers, dashes — used as the folder name
    under `whatsap/devices/`) and **Label** (a friendly display name), then click **Add Device**.
 4. You're taken to that device's page, showing a QR code. On the phone you want to link, open
@@ -174,12 +174,25 @@ A "device" is one WhatsApp account/phone linked to the bot; you can link more th
    - The QR expires after about a minute — click **Refresh QR code** if scanning fails.
    - The page polls status every 2 seconds and switches to "✅ Connected" automatically once
      scanning succeeds — no manual refresh needed.
+   - **If you don't scan within about a minute, the device gives up and flips to
+     "❌ Disconnected"** rather than sitting on a stale QR forever — see below for getting it
+     back.
 5. Alternatively, skip the UI and watch the `whatsap` container's logs
    (`docker compose -f docker-compose-whatsap.yml logs -f whatsap`) — each device's QR is also
    printed to the terminal, prefixed with its device name.
 
 Once connected, a device's session persists across restarts (`whatsap/devices/<name>/session`) —
 you only need to re-scan if that session is explicitly removed or WhatsApp invalidates it.
+
+### Reconnecting a disconnected device
+
+A device shows "❌ Disconnected" on its page when its WhatsApp Web session drops — the
+one-minute unscanned-QR timeout above, an unlinked/logged-out phone, or a lost connection. Click
+**Reconnect** to bring it back:
+
+- If the on-disk session is still valid (e.g. a transient network blip), it reconnects straight
+  to "✅ Connected" with no QR needed.
+- Otherwise, a fresh QR appears — scan it the same way as when the device was first added.
 
 ### Chatting with the bot
 

@@ -20,3 +20,10 @@ export function getWhatsAppClient(deviceName: string): any {
     }
     return client;
 }
+
+// Non-throwing variant for callers that need to handle "no client yet"
+// themselves (e.g. reconnectDevice in bot.ts, which treats it as "nothing
+// to tear down" rather than an error).
+export function tryGetWhatsAppClient(deviceName: string): any | undefined {
+    return clients.get(deviceName);
+}
