@@ -2,6 +2,7 @@
 import { ref } from "vue";
 import { useChat } from "../composables/useChat.ts";
 import { grabSelection, grabPageText } from "../composables/usePageContext.ts";
+import { renderMarkdown } from "../utils/renderMarkdown.ts";
 
 const SERVER_URL = "http://localhost:4100";
 
@@ -43,9 +44,12 @@ function clearContext() {
   <div class="flex h-full flex-col">
     <ul class="flex-1 space-y-2 overflow-y-auto p-3" aria-live="polite">
       <li v-for="(m, i) in messages" :key="i" :class="m.role === 'user' ? 'text-right' : 'text-left'">
-        <span class="inline-block rounded px-2 py-1" :class="m.role === 'user' ? 'bg-blue-100' : 'bg-gray-100'">
-          {{ m.text }}
-        </span>
+        <span
+          v-if="m.role === 'agent'"
+          class="markdown inline-block rounded bg-gray-100 px-2 py-1 text-left"
+          v-html="renderMarkdown(m.text)"
+        />
+        <span v-else class="inline-block rounded bg-blue-100 px-2 py-1">{{ m.text }}</span>
       </li>
     </ul>
 
@@ -70,3 +74,46 @@ function clearContext() {
     </form>
   </div>
 </template>
+
+<style scoped>
+.markdown :deep(p) {
+  margin: 0.25em 0;
+}
+.markdown :deep(p:first-child) {
+  margin-top: 0;
+}
+.markdown :deep(p:last-child) {
+  margin-bottom: 0;
+}
+.markdown :deep(ul),
+.markdown :deep(ol) {
+  margin: 0.25em 0;
+  padding-left: 1.25em;
+}
+.markdown :deep(code) {
+  background: rgba(0, 0, 0, 0.08);
+  border-radius: 0.2em;
+  padding: 0.1em 0.3em;
+  font-size: 0.9em;
+}
+.markdown :deep(pre) {
+  background: rgba(0, 0, 0, 0.08);
+  border-radius: 0.3em;
+  padding: 0.5em;
+  overflow-x: auto;
+}
+.markdown :deep(pre code) {
+  background: none;
+  padding: 0;
+}
+.markdown :deep(a) {
+  color: #2563eb;
+  text-decoration: underline;
+}
+.markdown :deep(blockquote) {
+  margin: 0.25em 0;
+  padding-left: 0.75em;
+  border-left: 2px solid rgba(0, 0, 0, 0.2);
+  color: rgba(0, 0, 0, 0.7);
+}
+</style>

@@ -31,6 +31,25 @@ describe("ChatView", () => {
         expect(screen.getByText("hello")).toBeInTheDocument();
     });
 
+    it("renders markdown in the agent's reply", async () => {
+        vi.stubGlobal(
+            "fetch",
+            vi.fn(async () => ({ ok: true, json: async () => ({ reply: "**bold** and a [link](https://example.com)" }) }))
+        );
+
+        render(ChatView);
+        const input = screen.getByRole("textbox", { name: /message/i });
+        await fireEvent.update(input, "hi");
+        await fireEvent.click(screen.getByRole("button", { name: /send/i }));
+
+        const bold = await screen.findByText("bold");
+        expect(bold.tagName).toBe("STRONG");
+
+        const link = screen.getByRole("link", { name: "link" });
+        expect(link).toHaveAttribute("href", "https://example.com");
+        expect(link).toHaveAttribute("target", "_blank");
+    });
+
     it("attaches selection context as a dismissible chip", async () => {
         render(ChatView);
         await fireEvent.click(screen.getByRole("button", { name: /use selection/i }));
