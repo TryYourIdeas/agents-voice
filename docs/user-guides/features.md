@@ -79,3 +79,72 @@ A Chrome side-panel extension for chatting with an AI agent about the page you'r
   panel session).
 - The agent can critically review attached text (arguments, evidence, clarity, bias) via
   its `critique-text` skill, or answer general questions.
+- **Web search** — the agent can search the web (Tavily-backed `web_search` tool) to
+  answer questions that need current information, not just what's on the page.
+- Chat replies render as Markdown (headings, lists, code, links, etc.), not plain text.
+
+## WhatsApp bot (`whatsap`)
+
+A WhatsApp bot (via `whatsapp-web.js`) that forwards `@ai`-prefixed chat messages to a LangChain
+agent backed by Anthropic's Messages API (or the local `llama-server`, see `config.md`).
+
+- **Multi-device** — link more than one WhatsApp account/phone to the bot at once, each with its
+  own independent session, conversation memory, and scheduled tasks. Add a device via the terminal
+  QR code or the [`devices-ui` web UI](#device-management-ui-devices-ui).
+- **Chat commands** (send any of these, prefixed with `@ai`, to a chat the linked account can see):
+  - `@ai help` — list available commands.
+  - `@ai <message>` — talk to the default agent.
+  - `@ai @agent <agent name> [message]` — talk to a named agent instead (see below).
+  - `@ai list agents` — list available named agents.
+  - `@ai list channels` — list every chat the bot can see, by display name.
+  - `@ai clear session` — forget this chat's conversation with every agent.
+  - `@ai schedule <describe task and timing>` — create a one-off or recurring scheduled task.
+  - `@ai list tasks` / `@ai cancel task <name>` — manage scheduled tasks.
+  - `!ping` — health check, replies `pong`.
+  - Any `@ai` message can include an attached or quoted image, or a voice note — the agent sees
+    the image or hears the transcribed audio.
+- **Auto-transcribed voice notes** — voice notes sent to allow-listed chats (`STT_ALLOWED_CHATS`)
+  are transcribed (Whisper) and forwarded to the default agent automatically, no `@ai` prefix needed.
+- **Named agents** (`@ai @agent <name> ...`) — specialized personas with their own system prompt,
+  tools, and skills:
+  - `math-coach` — Socratic math tutor (guides toward the answer instead of stating it).
+  - `story-coach` — storytelling coach for practicing/improving personal stories.
+  - `system-design-coach` — plays interviewer for system design practice, with diagrams
+    (via `plantuml-renderer`) and structured feedback.
+  - `critical-thinking-analyst` — fact-checks claims, evaluates argument structure, flags
+    logical fallacies and rhetorical strategies in a piece of text.
+  - `task-scheduler` — creates/lists/cancels scheduled tasks (what `@ai schedule` delegates to).
+- **Skills** — a progressive-disclosure system (distinct from Claude Code's own skills) that
+  injects a list of available skills into an agent's system prompt and lets it load a skill's
+  full instructions on demand: `git-tasks`, `topic-research`, `effective-prompt-writing`,
+  `vite-unit-tests`, `cron-scheduling`, `logical-fallacies`, `argumentation-strategies`,
+  `argument-analysis`, `skill-creator` (for authoring new skills).
+- **Scheduled tasks** — one-off or recurring (cron) tasks that run an agent later and deliver the
+  result back to the originating WhatsApp chat.
+- **Tools available to agents** — read/write/list files, execute bash, download a file, fetch a
+  URL, web search (Tavily), render a PlantUML diagram, plus the scheduling tools above.
+
+## Device management UI (`devices-ui`)
+
+A small Nuxt web UI (`http://localhost:3003`) for managing `whatsap`'s linked devices without
+needing a terminal:
+
+- **List devices** — name, label, and live connection status (`pending` / `connected` / etc.).
+- **Add a device** — name (lowercase letters/numbers/dashes) + a display label; creates a pending
+  device request picked up by `whatsap`'s onboarding poller with no restart needed.
+- **QR pairing page** — shows the device's live QR code (refreshable) until it's scanned, then
+  flips to a "Connected" state automatically (polls status every 2 seconds).
+
+## Local LLM server (`llama-server`)
+
+A local, OpenAI/Ollama-compatible inference server (`llama.cpp`, serving a Qwen3.5-4B GGUF) that
+`whatsap` and `ai-extension/server` can point at instead of the real Anthropic API — useful for
+running the WhatsApp bot or the browser extension entirely offline/free, at the cost of a smaller,
+weaker model. Not wired into the main voice-AI `ui`.
+
+## Diagram rendering (`plantuml-renderer`)
+
+A small internal HTTP service that renders PlantUML diagram source to SVG/PNG, used by the
+`system-design-coach` named agent's `render_diagram` tool so it can produce architecture/sequence
+diagrams as part of its feedback. Runs with a read-only filesystem, dropped capabilities, and no
+shell invocation (see `plantuml-renderer/README.md`).

@@ -1,5 +1,16 @@
 # Changes
 
+## 2026-09-24 — Document `whatsap`, `devices-ui`, `llama-server`, and `plantuml-renderer` in the user guides
+
+`docs/user-guides/config.md`, `features.md`, and `manual.md` covered the voice-AI stack
+(`tts`/`stt`/`qwen-stt`/`ui`) and `ai-extension` well but were missing the `whatsap` WhatsApp bot
+itself (chat commands, named agents, skills, scheduled tasks, voice-note auto-transcription),
+the `devices-ui` device-management web UI, `llama-server`'s config, and `plantuml-renderer`.
+Extended all three docs with that coverage instead of creating new files, to avoid duplicating
+the existing WhatsApp-bot section already in `config.md`. Also filled in `MAX_TOKENS`/
+`TAVILY_API_KEY`, which `ai-extension/server`'s config table was missing, and noted the
+`web_search` tool and Markdown-rendered replies already shipped in `ai-extension`.
+
 ## 2026-09-24 — Fix `docker-compose-whatsap.yml` crash-loop on `whatsap`/`ai-extension-server`
 
 Both services crashed on startup with `ERR_UNSUPPORTED_NODE_MODULES_TYPE_STRIPPING` when
