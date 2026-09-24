@@ -1,8 +1,10 @@
 # User Manual
 
-This is a walkthrough of using the web UI at `http://localhost:3000` (or wherever the `ui` service is
-deployed). For raw API usage against the backend services directly, see [`api.md`](./api.md). For
-environment/configuration options, see [`config.md`](./config.md).
+This is a walkthrough of using every user-facing part of this repo: the voice-AI web UI at
+`http://localhost:3000`, the `ai-extension` Chrome extension, and the WhatsApp bot (`whatsap`,
+plus its `devices-ui` device-management UI). For raw API usage against the backend services
+directly, see [`api.md`](./api.md). For environment/configuration options, see
+[`config.md`](./config.md).
 
 ## 0. Running the project
 
@@ -139,15 +141,85 @@ UI does not currently expose a delete button.
    page** to attach context — it appears as a chip above the input. Neither button talks
    to the server by itself; they only grab text locally.
 3. Type a message (e.g. "critically review this") and press **Send** — this is the only
-   step that sends anything to `ai-extension/server`.
+   step that sends anything to `ai-extension/server`. The agent may call its web-search
+   tool if your message needs current information, not just the attached page.
 4. The attached context is cleared after each send; attach again for the next message if
    needed.
+5. Replies render as Markdown (headings, lists, code blocks, links).
 
 If **Use selection**/**Use page** shows a red error instead of a chip, it'll say why. The
 extension requests broad `http(s)://*/*` host permissions (see
 [`config.md`](./config.md)) specifically so these buttons work reliably on any page —
 `activeTab` alone isn't sufficient once the click happens inside the side panel rather
 than directly on the toolbar icon.
+
+## Using the WhatsApp bot
+
+Requires the `docker-compose-whatsap.yml` stack running (`docker compose -f
+docker-compose-whatsap.yml up --build` — see [`config.md`](./config.md) for the full service
+breakdown and required env vars). Every interaction happens inside WhatsApp itself, once a
+device is linked.
+
+### Managing WhatsApp devices
+
+A "device" is one WhatsApp account/phone linked to the bot; you can link more than one at a time.
+
+1. Open **http://localhost:3003** (the `devices-ui` service).
+2. The device list shows every linked device with its name, label, and status
+   (`pending` / `connected`).
+3. To add one: fill in **Name** (lowercase letters, numbers, dashes — used as the folder name
+   under `whatsap/devices/`) and **Label** (a friendly display name), then click **Add Device**.
+4. You're taken to that device's page, showing a QR code. On the phone you want to link, open
+   **WhatsApp → Settings → Linked Devices → Link a Device** and scan it.
+   - The QR expires after about a minute — click **Refresh QR code** if scanning fails.
+   - The page polls status every 2 seconds and switches to "✅ Connected" automatically once
+     scanning succeeds — no manual refresh needed.
+5. Alternatively, skip the UI and watch the `whatsap` container's logs
+   (`docker compose -f docker-compose-whatsap.yml logs -f whatsap`) — each device's QR is also
+   printed to the terminal, prefixed with its device name.
+
+Once connected, a device's session persists across restarts (`whatsap/devices/<name>/session`) —
+you only need to re-scan if that session is explicitly removed or WhatsApp invalidates it.
+
+### Chatting with the bot
+
+Send messages to/from a linked device's WhatsApp account, prefixed with `@ai`:
+
+1. `@ai help` — see the full command list at any time.
+2. `@ai <message>` — talk to the default agent, e.g. `@ai what's a good weeknight dinner using
+   chicken and rice?`.
+3. Attach or quote an image, or send a voice note, along with (or instead of) text — the agent
+   sees the image or hears the transcribed audio.
+4. `@ai clear session` — forget the conversation so far in this chat and start fresh.
+5. `@ai list channels` — list every chat the bot can see, by display name (useful for setting
+   `STT_ALLOWED_CHATS`, see [`config.md`](./config.md)).
+
+Voice notes sent to an allow-listed chat (`STT_ALLOWED_CHATS`, default `@jlabrada71`) are
+transcribed and forwarded to the default agent automatically — no `@ai` prefix needed.
+
+### Talking to a named agent
+
+Named agents are specialized personas (a math tutor, an interview coach, etc.) with their own
+system prompt and tools — see [`features.md`](./features.md#whatsapp-bot-whatsap) for the full
+list.
+
+1. `@ai list agents` — see which named agents are configured.
+2. `@ai @agent <agent name> [message]` — start or continue a conversation with that agent, e.g.
+   `@ai @agent math-coach I want to practice fractions`.
+3. Each named agent keeps its own conversation memory per chat, separate from the default agent
+   and from other named agents — `@ai clear session` resets all of them together for that chat.
+
+### Scheduling tasks
+
+1. `@ai schedule <describe the task and when it should run>` — e.g. `@ai schedule every Monday
+   at 9am, remind me to submit my timesheet`. This is handled by the `task-scheduler` named
+   agent, which figures out the cron/one-off timing and confirms what it scheduled.
+2. `@ai list tasks` — see every active scheduled task for this device.
+3. `@ai cancel task <name>` — cancel one (the name comes from the confirmation message or
+   `@ai list tasks`'s listing).
+
+When a task fires, its result is delivered back to the WhatsApp chat it was scheduled from,
+without you needing to be present.
 
 ```mermaid
 sequenceDiagram
