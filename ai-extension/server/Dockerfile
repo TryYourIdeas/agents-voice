@@ -23,7 +23,19 @@ WORKDIR /app
 # same way it does on disk (ai-extension/server -> ai-extension -> repo
 # root -> lib): path resolution above the filesystem root clamps to root,
 # so both this and whatsap's single-".." path land on the same /lib.
+#
+# pnpm's "file:" protocol packs the target directory into node_modules
+# rather than symlinking back to it, so whatever's on disk here (including
+# raw .ts source) ends up physically inside node_modules. Node's native TS
+# type-stripping refuses to strip types for anything under node_modules
+# (ERR_UNSUPPORTED_NODE_MODULES_TYPE_STRIPPING, no override flag exists),
+# so the shared lib must be pre-compiled to plain JS before the "file:"
+# dependency is packed — hence `npm run build` here before `pnpm install`.
 COPY lib/langchain-agent-kit /lib/langchain-agent-kit
+# --include=dev ensures the "typescript" devDependency this build needs is
+# installed even though NODE_ENV=production is set later in this Dockerfile
+# (matches whatsap/Dockerfile's equivalent step, where it's set earlier).
+RUN npm --prefix /lib/langchain-agent-kit install --include=dev && npm --prefix /lib/langchain-agent-kit run build
 COPY ai-extension/server/package.json ai-extension/server/pnpm-lock.yaml ./
 RUN pnpm install --frozen-lockfile
 

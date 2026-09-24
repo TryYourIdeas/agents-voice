@@ -3,10 +3,18 @@
     "version": "1.0.0",
     "description": "Shared LangChain agent building blocks for whatsap and ai-extension/server: frontmatter parsing, skill middleware, and model-call logging.",
     "type": "module",
+    "files": [
+        "dist"
+    ],
     "exports": {
-        ".": "./src/index.ts"
+        ".": {
+            "types": "./dist/index.d.ts",
+            "default": "./dist/index.js"
+        }
     },
+    "types": "./dist/index.d.ts",
     "scripts": {
+        "build": "tsc -p tsconfig.build.json",
         "test": "vitest run",
         "test:watch": "vitest"
     },

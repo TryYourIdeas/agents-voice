@@ -8,7 +8,7 @@ A WhatsApp bot (via `whatsapp-web.js`) that forwards `@ai`-prefixed messages to 
 
 ## Commands
 
-- Install deps: `pnpm install` (pnpm workspace, pinned to `pnpm@10.30.0`; `onlyBuiltDependencies: [puppeteer]` in `pnpm-workspace.yaml` since `whatsapp-web.js` drives Puppeteer)
+- Install deps: `(cd ../lib/langchain-agent-kit && npm install && npm run build) && pnpm install` (pnpm workspace, pinned to `pnpm@10.30.0`; `onlyBuiltDependencies: [puppeteer]` in `pnpm-workspace.yaml` since `whatsapp-web.js` drives Puppeteer). The `langchain-agent-kit` build step is required — its `file:` dependency is packed by pnpm into `node_modules` as a real copy (not a symlink back to `lib/`), and Node's native TS type-stripping refuses to strip types for anything under `node_modules`, so the shared lib must already be compiled to `dist/*.js` before `pnpm install` packs it.
 - Run the actual bot (WhatsApp client + agent wiring): `node index.ts` — **not** `pnpm start`/`node coordinator.ts`; see "Standalone/experimental scripts" below.
 - First run requires scanning a QR code (printed to terminal via `qrcode-terminal`) to authenticate the WhatsApp Web session.
 - Requires `ANTHROPIC_API_KEY` and `ANTHROPIC_MODEL` set (e.g. via `.env`, see `.env.example`) — `agent.ts` throws at import time if `ANTHROPIC_MODEL` is missing.
