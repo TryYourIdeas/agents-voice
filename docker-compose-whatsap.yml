@@ -40,6 +40,8 @@ services:
       context: .
       dockerfile: whatsap/Dockerfile
     image: agents-voice-whatsap:latest
+    # Chromium (one per device) is slow/unstable with Docker's default 64MB.
+    shm_size: "1gb"
     env_file:
       - ./.env.whatsap-llama
     volumes:

@@ -1,5 +1,16 @@
 # Changes
 
+## 2026-10-13 — Fix Whisper `stt` crash-loop and `whatsap` devices dying on Chromium launch timeout
+
+- `whisper-speech-to-text`: `transformers>=4.45` resolved to 5.x on rebuild, which calls
+  `torch.accelerator` (absent in the pinned torch 2.5.1), so the service crash-looped on import.
+  Pinned `transformers<5`.
+- `whatsap`: with all devices launching Chromium at once, puppeteer's 30s launch timeout was
+  exceeded, leaving `client.pupPage` null and the scheduler throwing
+  `Cannot read properties of null (reading 'evaluate')` every minute. Raised the launch timeout,
+  added `--disable-dev-shm-usage` and `shm_size: 1gb`, retry a failed `initialize()` up to 3 times
+  (15s apart), and made the scheduler skip devices whose browser isn't up.
+
 ## 2026-09-24 — Add a Reconnect button and a QR-scan timeout to `devices-ui`
 
 A disconnected device previously had no way to recover short of restarting the whole `whatsap`
