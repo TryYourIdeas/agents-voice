@@ -102,7 +102,13 @@ export function createDeviceBot(device: DeviceConfig): any {
         puppeteer: {
             // Chromium has no usable sandbox when running as root in a container.
             executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || undefined,
-            args: ['--no-sandbox', '--disable-setuid-sandbox'],
+            // --disable-dev-shm-usage: Docker's default 64MB /dev/shm is too
+            // small for Chromium and slows its startup.
+            args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage'],
+            // Default launch timeout (30s) was exceeded when all devices'
+            // Chromium instances start at once ("Timed out after 30000 ms
+            // while waiting for the WS endpoint URL").
+            timeout: 120000,
             // Default (30s) was too tight once a second device's Chromium
             // launches concurrently and competes for CPU during init —
             // hit a real "Runtime.callFunctionOn timed out" ProtocolError
@@ -376,8 +382,30 @@ export function createDeviceBot(device: DeviceConfig): any {
         console.error(`[${deviceName}] client.initialize() failed:`, err);
         clearQrPendingTimeout(deviceName);
         setDeviceStatus(deviceName, { state: 'disconnected' });
+        scheduleInitRetry(device);
     });
     return client;
+}
+
+// A failed initialize() (typically a Chromium launch timeout) used to leave
+// the device dead until the container restarted. Retry a few times with
+// backoff; a user-triggered reconnect (devices-ui) resets the counter.
+const MAX_INIT_RETRIES = 3;
+const INIT_RETRY_DELAY_MS = 15000;
+const initRetries = new Map<string, number>();
+
+function scheduleInitRetry(device: DeviceConfig): void {
+    const attempt = (initRetries.get(device.name) ?? 0) + 1;
+    if (attempt > MAX_INIT_RETRIES) {
+        console.error(`[${device.name}] giving up after ${MAX_INIT_RETRIES} initialize() retries; use Reconnect in devices-ui`);
+        return;
+    }
+    initRetries.set(device.name, attempt);
+    console.log(`[${device.name}] retrying initialize() in ${INIT_RETRY_DELAY_MS}ms (attempt ${attempt}/${MAX_INIT_RETRIES})`);
+    setTimeout(() => {
+        reconnectDevice(device, true).catch((err: unknown) =>
+            console.error(`[${device.name}] init retry failed:`, err));
+    }, INIT_RETRY_DELAY_MS);
 }
 
 // Tears down a device's existing client (if any — 'disconnected' devices
@@ -389,8 +417,9 @@ export function createDeviceBot(device: DeviceConfig): any {
 // blip), the client reconnects straight to 'ready' with no new QR; if
 // WhatsApp actually logged the device out, a fresh 'qr' event fires and
 // the caller sees this device go back to 'pending' as normal.
-export async function reconnectDevice(device: DeviceConfig): Promise<any> {
+export async function reconnectDevice(device: DeviceConfig, isAutoRetry = false): Promise<any> {
     const deviceName = device.name;
+    if (!isAutoRetry) initRetries.delete(deviceName);
     clearQrPendingTimeout(deviceName);
     const existing = tryGetWhatsAppClient(deviceName);
     if (existing) {

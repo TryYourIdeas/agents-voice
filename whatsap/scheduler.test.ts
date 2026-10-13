@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { isDue, buildRecurringPrompt } from "./scheduler.ts";
+import { isDue, buildRecurringPrompt, isClientReady } from "./scheduler.ts";
 import type { ScheduledTask } from "./lib/tasks.ts";
 
 // Only the fields isDue actually reads are set on each fixture — the rest
@@ -63,5 +63,19 @@ describe("buildRecurringPrompt", () => {
         expect(prompt).toContain("Summarize today's news.");
         expect(prompt).toContain("## Notes from previous runs");
         expect(prompt).toContain("## This run's task");
+    });
+});
+
+describe("isClientReady", () => {
+    it("is false when the browser page never came up (pupPage null)", () => {
+        expect(isClientReady({ pupPage: null })).toBe(false);
+    });
+
+    it("is false for a missing client", () => {
+        expect(isClientReady(undefined)).toBe(false);
+    });
+
+    it("is true once the browser page exists", () => {
+        expect(isClientReady({ pupPage: {} })).toBe(true);
     });
 });

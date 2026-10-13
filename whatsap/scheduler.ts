@@ -35,7 +35,16 @@ export function startScheduler(devices: DeviceHandle[]): void {
     }, POLL_INTERVAL_MS);
 }
 
+// A client whose Chromium failed to launch (client.initialize() rejected, see
+// bot.ts) has pupPage === null; firing a task against it would throw
+// "Cannot read properties of null (reading 'evaluate')" every poll. Skipping
+// leaves tasks untouched, so they fire as soon as the device is back.
+export function isClientReady(client: any): boolean {
+    return !!client?.pupPage;
+}
+
 async function pollOnce(deviceName: string, client: any): Promise<void> {
+    if (!isClientReady(client)) return;
     if (pollingDevices.has(deviceName)) return;
     pollingDevices.add(deviceName);
     try {
