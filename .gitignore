@@ -6,3 +6,4 @@ models
 model-qwen3.5
 node_modules
 .env.whatsap-llama
+references/

@@ -1,0 +1,20 @@
+# Builds llama.cpp (static ggml, CUDA 13) and exports the binaries to
+# llama-gpu/ — see scripts/build-llama-gpu.sh. Matches the CUDA 13 runtime
+# libs llama-server/Dockerfile.gpu ships. LFM3 needs llama.cpp >= b11960.
+FROM nvidia/cuda:13.0.2-devel-ubuntu24.04 AS build
+ARG LLAMA_CPP_TAG=b11960
+ARG CUDA_ARCHS=86
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        git cmake build-essential ca-certificates libssl-dev libgomp1 \
+    && rm -rf /var/lib/apt/lists/*
+RUN git clone --depth 1 --branch ${LLAMA_CPP_TAG} https://github.com/ggml-org/llama.cpp /src
+WORKDIR /src
+# libcuda.so.1 only exists at run time (injected by nvidia-container-toolkit):
+# link against the toolkit's stub dir.
+RUN cmake -B build -DGGML_CUDA=ON -DCMAKE_CUDA_ARCHITECTURES="${CUDA_ARCHS}" \
+        -DBUILD_SHARED_LIBS=OFF -DGGML_CUDA_NCCL=OFF -DLLAMA_OPENSSL=ON -DCMAKE_BUILD_TYPE=Release \
+        -DCMAKE_EXE_LINKER_FLAGS="-L/usr/local/cuda/lib64/stubs" \
+    && cmake --build build -j"$(nproc)" --target llama-server llama-cli llama-mtmd-cli llama-tts
+
+FROM scratch AS export
+COPY --from=build /src/build/bin/ /

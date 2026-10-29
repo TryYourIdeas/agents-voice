@@ -14,6 +14,7 @@
 !model-qwen3.5/**
 !start-llama-server.sh
 !start-llama-server-gpu.sh
+!start-llama-server-lfm3-gpu.sh
 
 !whatsap/**
 whatsap/node_modules
