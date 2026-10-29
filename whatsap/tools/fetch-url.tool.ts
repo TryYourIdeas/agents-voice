@@ -1,5 +1,6 @@
 import { tool } from "langchain";
 import { z } from "zod";
+import { htmlToText } from "../lib/html-to-text.ts";
 
 // Cap response size so a huge page/response body doesn't blow up the
 // agent's context window.
@@ -19,11 +20,15 @@ export const fetchUrlTool = tool(
     }
 
     const contentType = response.headers.get("content-type") || "unknown";
-    const text = await response.text();
+    const body = await response.text();
+    // HTML is reduced to readable text first: raw markup filled the cap with
+    // <head>/scripts and left no headlines for the model to read.
+    const isHtml = /html/i.test(contentType) || /^\s*<(!doctype|html)/i.test(body);
+    const text = isHtml ? htmlToText(body) : body;
     const truncated = text.length > MAX_CONTENT_LENGTH;
     const content = truncated ? text.slice(0, MAX_CONTENT_LENGTH) : text;
 
-    return `Content-Type: ${contentType}${truncated ? ` (truncated to ${MAX_CONTENT_LENGTH} characters)` : ""}\n\n${content}`;
+    return `Content-Type: ${contentType}${isHtml ? " (converted to text)" : ""}${truncated ? ` (truncated to ${MAX_CONTENT_LENGTH} characters)` : ""}\n\n${content}`;
   },
   {
     name: "fetch_url",
