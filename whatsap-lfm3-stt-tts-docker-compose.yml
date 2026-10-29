@@ -1,0 +1,216 @@
+# LFM3 STT+TTS variant (2/3): as whatsap-lfm3-stt-docker-compose.yml, plus the
+# agent answers voice notes with a voice note. whatsap calls lfm3-audio's
+# POST /tts (VOICE_REPLY=true, TTS_URL) and sends the result as an Ogg/Opus
+# push-to-talk message; if synthesis fails it falls back to a text reply.
+# Text (@ai) requests still get text replies.
+#
+# Usage:
+#   docker compose -f whatsap-lfm3-stt-tts-docker-compose.yml up --build
+#
+# First run needs an interactive terminal to scan the WhatsApp Web QR code
+# for each configured device (see whatsap/devices/*/device.md):
+#   docker compose -f whatsap-lfm3-stt-tts-docker-compose.yml run --rm whatsap
+# (or `up` in the foreground, not detached, and watch the logs — each
+# device's QR is prefixed with its device name). The authenticated session
+# then persists in ./whatsap/devices/<name>/session across restarts.
+#
+# `name:` gives this stack its own Compose project so it won't collide with
+# containers started from the default docker-compose.yml.
+name: agents-voice-whatsap-lfm3-stt-tts
+
+services:
+  whatsap:
+    build:
+      context: .
+      dockerfile: whatsap/Dockerfile
+    image: agents-voice-whatsap:latest
+    # Chromium (one per device) is slow/unstable with Docker's default 64MB.
+    shm_size: "1gb"
+    env_file:
+      - ./.env.whatsap-llama
+    volumes:
+      # Per-device session, memory, scheduled tasks, and any file a device's
+      # tools create/download (see lib/device-scoped-path.ts and
+      # docs/superpowers/specs/2026-09-08-multi-device-support-design.md) —
+      # devices/<name>/{session,memory,tasks,research,diagrams,ai-news,...}.
+      # Every file-producing tool (write_file, download_file, web_search,
+      # render_diagram, scheduled-task output, etc.) now resolves under a
+      # device's own directory, so this one mount covers all of it — without
+      # it, every image rebuild would wipe every device's auth session,
+      # memory, schedules, and any files it created.
+      - ./whatsap/devices:/app/devices
+      # Device-onboarding drop directory (see whatsap/device-onboarding.ts)
+      # — a new device is created by writing new-devices/<name>.md here;
+      # the running process picks it up without a restart.
+      - ./whatsap/new-devices:/app/new-devices
+    environment:
+      # Small local models can loop on web_search; fail fast instead of 100 steps.
+      AGENT_RECURSION_LIMIT: "60"
+      # Enables [trace] message-type logging and other debug tracing.
+      NUXT_ADD_DEBUG_LOGS: "true"
+      STT_URL: http://lfm3-audio:8010
+      VOICE_REPLY: "true"
+      TTS_URL: http://lfm3-audio:8010
+      TTS_VOICE: female
+      PLANTUML_URL: http://plantuml-renderer:3000
+      # Comma-separated chat display names (as shown by "@ai list channels")
+      # whose voice notes get transcribed and forwarded to the agent — see
+      # index.ts. Audio sent to any other chat is left untouched.
+      STT_ALLOWED_CHATS: "@jlabrada71,+55 48 8458-8841"
+    depends_on:
+      - llama-server
+      - lfm3-audio
+      - plantuml-renderer
+    # QR code login (first run) is printed to stdout and needs a TTY.
+    stdin_open: true
+    tty: true
+    restart: unless-stopped
+
+  ai-extension-server:
+    build:
+      context: .
+      dockerfile: ai-extension/server/Dockerfile
+    image: ai-extension-server:latest
+    env_file:
+      # Same file whatsap/llama-server use — ANTHROPIC_BASE_URL already
+      # points at http://llama-server:5050 (the Docker service DNS name),
+      # with placeholder ANTHROPIC_API_KEY/ANTHROPIC_MODEL, so no real
+      # Anthropic API key is needed to run this locally.
+      - ./.env.whatsap-llama
+    ports:
+      - "4100:4100"
+    environment:
+      # Matches ai-extension/extension/manifest.config.ts's pinned dev key's
+      # derived ID — see docs/user-guides/config.md. Override both together
+      # if you swap in your own manifest key.
+      EXTENSION_ID: kbemgcmgfjcmpfhfcpfgfpanaommfgco
+      PORT: "4100"
+      MAX_CONTEXT_CHARS: "20000"
+    depends_on:
+      # condition: service_healthy (not the plain list form) so this only
+      # starts once llama-server's own healthcheck passes — llama.cpp
+      # returns 503 "Loading model" on /health (and on chat requests) for a
+      # while after the container starts, until the GGUF finishes loading.
+      # Without this, an early chat request can hit that window and fail.
+      llama-server:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:4100/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    restart: unless-stopped
+
+  devices-ui:
+    build: ./whatsap/devices-ui
+    image: whatsap-devices-ui:latest
+    ports:
+      # Host port 3002 was already taken by an unrelated native process on
+      # this host (same class of conflict plantuml-renderer's own port hit
+      # previously) — internal container-to-container traffic is on the
+      # container's own port 3000 regardless, unaffected by this remap.
+      - "3003:3000"
+    environment:
+      # NUXT_-prefixed so Nuxt's runtime override mechanism actually applies
+      # to the *built* image (see devices-ui/nuxt.config.ts's comment) —
+      # reaches whatsap's internal API (internal-api.ts) by Docker
+      # service-name DNS, never exposed to the host directly.
+      NUXT_WHATSAP_API_URL: http://whatsap:4001
+      NUXT_NEW_DEVICES_DIR: /data/new-devices
+    volumes:
+      # Shared with whatsap's own ./whatsap/new-devices mount — this is how
+      # the "Add Device" form creates a device without ever calling into
+      # whatsap's (read-only) API. See whatsap/device-onboarding.ts.
+      - ./whatsap/new-devices:/data/new-devices
+    depends_on:
+      - whatsap
+    restart: unless-stopped
+
+  lfm3-audio:
+    build: ./lfm3-audio
+    image: lfm3-audio:latest
+    ports:
+      - "8010:8010"
+    volumes:
+      - ./models:/models
+    environment:
+      # Q4_K_M GGUF run via llama.cpp (see lfm3-audio/Dockerfile).
+      LFM3_AUDIO_FILE: LFM3-Audio-2B-Q4_K_M.gguf
+      LFM3_AUDIO_NGL: "99"
+      NUXT_ADD_DEBUG_LOGS: "${NUXT_ADD_DEBUG_LOGS:-false}"
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:8010/health').status==200 else 1)"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 300s
+    restart: unless-stopped
+
+  plantuml-renderer:
+    build: ./plantuml-renderer
+    image: plantuml-renderer:latest
+    ports:
+      # Host port 3001 to avoid colliding with something else already using
+      # 3000 on this host — internal service-to-service traffic (what
+      # whatsap actually uses, via PLANTUML_URL) is on the container's own
+      # port 3000 regardless, unaffected by this host-side mapping.
+      - "3001:3000"
+    environment:
+      PORT: 3000
+      PLANTUML_TIMEOUT_MS: 10000
+      MAX_DIAGRAM_SIZE: 1048576
+      MAX_CONCURRENT_RENDERS: 2
+    # See plantuml-renderer/README.md's Security section for what these do.
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    read_only: true
+    tmpfs:
+      - /tmp
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    restart: unless-stopped
+
+  llama-server:
+    build:
+      context: .
+      dockerfile: llama-server/Dockerfile.lfm3.gpu
+    image: llama-server-lfm3-gpu:latest
+    env_file:
+      # Shares MAX_TOKENS with the whatsap service — read by
+      # start-llama-server-gpu.sh's -n flag (see that script).
+      - ./.env.whatsap-llama
+    ports:
+      - "5050:5050"
+    environment:
+      LFM3_HF_MODEL: LiquidAI/LFM3-1.7B-GGUF:Q8_0
+      LLAMA_CACHE: /models/llama-cache
+    volumes:
+      - ./models/llama-cache:/models/llama-cache
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5050/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 300s
+    restart: unless-stopped
