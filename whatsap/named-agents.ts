@@ -1,3 +1,4 @@
+import { createMessageTypeTraceMiddleware } from "./lib/message-trace.ts";
 import { readFileSync, readdirSync, existsSync } from "fs";
 import path from "node:path";
 import { createAgent, tool } from "langchain";
@@ -6,7 +7,7 @@ import { HumanMessage, SystemMessage } from "@langchain/core/messages";
 
 import { model, sharedTools, sharedCheckpointer } from "./shared.ts";
 import { createMemoryMiddleware } from "./middleware/memory-middleware.ts";
-import { extractText } from "./util.ts";
+import { extractText, agentRecursionLimit, isRecursionLimitError, RECURSION_LIMIT_REPLY } from "./util.ts";
 import {
     createSkillMiddleware,
     createLogModelCallMiddleware,
@@ -16,6 +17,7 @@ import {
 } from "langchain-agent-kit";
 
 const logModelCallMiddleware = createLogModelCallMiddleware({ prefix: "[Middleware]" });
+const messageTypeTraceMiddleware = createMessageTypeTraceMiddleware({ prefix: "[Middleware]" });
 
 // Named agents (whatsap/agents/<name>/agent.md) — each one is its own
 // createAgent instance per device (see agent.ts's getDefaultAgent for the
@@ -135,6 +137,7 @@ function getNamedAgent(deviceName: string, agentName: string): ReturnType<typeof
             createSkillMiddleware("./skills", { extraDirs: [agentSkillsDir], allowedSkills: header.allowedSkills }),
             createMemoryMiddleware(`devices/${deviceName}/memory`),
             logModelCallMiddleware,
+            messageTypeTraceMiddleware,
         ],
     });
 
@@ -149,10 +152,12 @@ export async function callNamedAgent(
     localThreadId: string
 ): Promise<string> {
     const namedAgent = getNamedAgent(deviceName, agentName);
-    const result = await namedAgent.invoke(
+    let result;
+    try {
+        result = await namedAgent.invoke(
         { messages: [new HumanMessage(message)] },
         {
-            recursionLimit: 100,
+            recursionLimit: agentRecursionLimit(),
             configurable: {
                 // Namespaced by device and agent name so switching agents (or
                 // talking to the default agent), or switching devices, never
@@ -160,7 +165,12 @@ export async function callNamedAgent(
                 thread_id: `device:${deviceName}:agent:${agentName}:${localThreadId}`,
             },
         }
-    );
+        );
+    } catch (err) {
+        if (!isRecursionLimitError(err)) throw err;
+        console.error(`[${deviceName}] [debug] callNamedAgent('${agentName}') hit the recursion limit; replying with a fallback`);
+        return RECURSION_LIMIT_REPLY;
+    }
     const { messages: updatedMessages } = result;
     return extractText(updatedMessages[updatedMessages.length - 1].content);
 }

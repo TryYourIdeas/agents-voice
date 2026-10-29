@@ -12,11 +12,12 @@ import path from 'path'
 
 import { callAgent, callNamedAgent, listAvailableAgents, clearSession } from './agent.ts'
 import { sendAgentResponse } from './lib/send-agent-response.ts'
+import { isBotSend } from './lib/own-messages.ts'
 import { archiveTask, tasksDir } from './lib/tasks.ts'
 import { setWhatsAppClient, tryGetWhatsAppClient } from './lib/whatsapp-client.ts'
 import { setDeviceStatus, getDeviceStatus } from './lib/device-status.ts'
 import type { DeviceConfig } from './lib/devices.ts'
-import { downloadMessageMedia, transcribeAudio, resolveIncomingMedia } from './lib/message-media.ts'
+import { downloadMessageMedia, messageIdOf, transcribeAudio, resolveIncomingMedia } from './lib/message-media.ts'
 import type { MessageContent } from "@langchain/core/messages"
 
 const { Client, LocalAuth } = whatsapp
@@ -187,6 +188,12 @@ export function createDeviceBot(device: DeviceConfig): any {
         logToFile(deviceName, message);
         console.log(`[${deviceName}] ---- message-create event ----`);
         console.log(`[${deviceName}] [debug] body:`, JSON.stringify(message.body), 'from:', message.from);
+        // One line per incoming/outgoing event, whatever its type — makes it
+        // visible when the bot's own replies (fromMe, ptt/audio/chat) or an
+        // unhandled type (e.g. protocol, e2e_notification) re-enter this handler.
+        console.log(`[${deviceName}] [msg-type] type=${message.type} fromMe=${message.fromMe} hasMedia=${message.hasMedia} ` +
+            `mimetype=${message.rawData?.mimetype ?? '-'} from=${message.from} to=${message.to} bodyLen=${(message.body ?? '').length} ` +
+            `isForwarded=${!!message.isForwarded} hasQuoted=${!!message.hasQuotedMsg} id=${messageIdOf(message) ?? '-'}`);
 
         // WhatsApp's own convention: the chat this message belongs to is `.to`
         // when the account sent it (fromMe), `.from` otherwise — e.g. for a
@@ -205,11 +212,17 @@ export function createDeviceBot(device: DeviceConfig): any {
         }
 
         if (message.hasMedia && (message.type === 'ptt' || message.type === 'audio')) {
+            // The bot's own voice reply echoes back here as fromMe=true; answering
+            // it would loop forever (transcribe -> agent -> voice reply -> ...).
+            if (message.fromMe && isBotSend(chatId, messageIdOf(message))) {
+                console.log(`[${deviceName}] [debug] ignoring the bot's own voice reply (${messageIdOf(message) ?? '-'})`);
+                return;
+            }
             try {
                 const chatName = await getChatNameById(client, chatId);
                 if (chatName && STT_ALLOWED_CHATS.includes(chatName)) {
                     console.log(`[${deviceName}] [debug] audio message received in '${chatName}' (stt-allowed), transcribing...`);
-                    const media = await downloadMessageMedia(client, message.rawData);
+                    const media = await downloadMessageMedia(client, message.rawData, messageIdOf(message));
                     if (!media) {
                         await message.reply('Sorry, I could not download that audio.');
                     } else {
@@ -217,7 +230,7 @@ export function createDeviceBot(device: DeviceConfig): any {
                         console.log(`[${deviceName}] [debug] transcript:`, transcript);
                         const response = await callAgent(deviceName, transcript, chatId);
                         console.log(`[${deviceName}] [debug] agent response:`, response);
-                        await sendAgentResponse(client, chatId, response);
+                        await sendAgentResponse(client, chatId, response, { voice: true });
                     }
                 }
             } catch (err) {

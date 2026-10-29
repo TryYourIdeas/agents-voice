@@ -2,7 +2,8 @@ import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { mkdtempSync, rmSync, existsSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { slugify, writeNewTask, readTask, listActiveTaskNames, updateLastRun, archiveTask, readTaskMemory, writeTaskMemory } from "./tasks.ts";
+import { mkdirSync, writeFileSync } from "node:fs";
+import { tryReadTask, slugify, writeNewTask, readTask, listActiveTaskNames, updateLastRun, archiveTask, readTaskMemory, writeTaskMemory } from "./tasks.ts";
 
 const DEVICE = "primary";
 
@@ -110,5 +111,13 @@ describe("task memory", () => {
         writeTaskMemory(DEVICE, "my-task", "first");
         writeTaskMemory(DEVICE, "my-task", "second");
         expect(readTaskMemory(DEVICE, "my-task")).toBe("second");
+    });
+
+    it("tryReadTask skips a task file without frontmatter instead of throwing", () => {
+        const dir = path.join("devices", DEVICE, "tasks");
+        mkdirSync(dir, { recursive: true });
+        writeFileSync(path.join(dir, "clobbered.md"), "Research results with no frontmatter\n");
+        expect(() => readTask(DEVICE, "clobbered")).toThrow();
+        expect(tryReadTask(DEVICE, "clobbered")).toBeUndefined();
     });
 });

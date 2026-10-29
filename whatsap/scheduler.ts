@@ -9,7 +9,7 @@
 import { CronExpressionParser } from "cron-parser";
 import { callAgent, callNamedAgent } from "./agent.ts";
 import { sendAgentResponse } from "./lib/send-agent-response.ts";
-import { listActiveTaskNames, readTask, updateLastRun, archiveTask, readTaskMemory, type ScheduledTask } from "./lib/tasks.ts";
+import { listActiveTaskNames, tryReadTask, updateLastRun, archiveTask, readTaskMemory, type ScheduledTask } from "./lib/tasks.ts";
 
 const POLL_INTERVAL_MS = process.env.SCHEDULER_POLL_INTERVAL_MS
     ? Number(process.env.SCHEDULER_POLL_INTERVAL_MS)
@@ -49,7 +49,7 @@ async function pollOnce(deviceName: string, client: any): Promise<void> {
     pollingDevices.add(deviceName);
     try {
         for (const name of listActiveTaskNames(deviceName)) {
-            const task = readTask(deviceName, name);
+            const task = tryReadTask(deviceName, name);
             if (!task || task.status !== "active") continue;
             try {
                 if (isDue(task)) {

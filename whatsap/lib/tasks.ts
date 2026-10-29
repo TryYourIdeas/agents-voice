@@ -114,6 +114,26 @@ export function readTask(device: string, name: string): ScheduledTask | undefine
     return parseTaskFile(readFileSync(filePath, "utf-8"), name);
 }
 
+// Unparseable task files already reported, so a corrupt file warns once rather
+// than on every scheduler poll.
+const reportedBadTasks = new Set<string>();
+
+// readTask for pollers/indexers: a malformed file (e.g. a task whose output was
+// saved over its own definition, leaving no frontmatter) is logged once and
+// skipped, instead of throwing and aborting the whole poll / index rebuild.
+export function tryReadTask(device: string, name: string): ScheduledTask | undefined {
+    try {
+        return readTask(device, name);
+    } catch (err) {
+        const key = `${device}/${name}`;
+        if (!reportedBadTasks.has(key)) {
+            reportedBadTasks.add(key);
+            console.error(`[tasks] [${device}] skipping unreadable task file '${name}.md' (${(err as Error).message}) — fix or delete it`);
+        }
+        return undefined;
+    }
+}
+
 function listArchivedTaskNames(device: string): string[] {
     const dir = archiveDir(device);
     if (!existsSync(dir)) return [];
@@ -123,10 +143,15 @@ function listArchivedTaskNames(device: string): string[] {
 }
 
 function regenerateIndex(dir: string, names: string[], archived: boolean): void {
-    const lines = names.map((name) => {
-        const task = parseTaskFile(readFileSync(path.join(dir, `${name}.md`), "utf-8"), name);
+    const lines = names.flatMap((name) => {
+        let task: ScheduledTask;
+        try {
+            task = parseTaskFile(readFileSync(path.join(dir, `${name}.md`), "utf-8"), name);
+        } catch {
+            return [];
+        }
         const schedule = task.scheduleType === "once" ? `once at ${task.schedule}` : task.schedule;
-        return `- **${task.name}** — ${task.description} (${schedule})`;
+        return [`- **${task.name}** — ${task.description} (${schedule})`];
     });
     const header = archived ? "# Archived Tasks\n" : "# Active Tasks\n";
     const body = lines.length > 0 ? lines.join("\n") : "(No tasks.)";

@@ -16,6 +16,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         fonts-liberation \
         ca-certificates \
         dumb-init \
+        ffmpeg \
     && rm -rf /var/lib/apt/lists/*
 
 ENV PUPPETEER_SKIP_DOWNLOAD=true \
@@ -49,7 +50,14 @@ COPY lib/langchain-agent-kit /lib/langchain-agent-kit
 # build needs.
 RUN npm --prefix /lib/langchain-agent-kit install --include=dev && npm --prefix /lib/langchain-agent-kit run build
 COPY whatsap/package.json whatsap/pnpm-lock.yaml whatsap/pnpm-workspace.yaml ./
-RUN pnpm install --frozen-lockfile
+# whatsapp-web.js is a git-hosted dependency (the jlabrada fork, see
+# docs/learnings/whatsapp-web-js.md): pnpm builds it with a nested `npm install`
+# whose `prepare` script (`is-ci || husky`) needs that package's devDependencies.
+# NODE_ENV=production (set above) makes npm skip them and the script fails with
+# "husky: not found", so install under NODE_ENV=development (--prod would be
+# forwarded to that nested npm and fail the same way), then prune this
+# project's own devDependencies out of the image as before.
+RUN NODE_ENV=development pnpm install --frozen-lockfile && pnpm prune --prod
 
 COPY whatsap/ .
 RUN chmod +x docker-entrypoint.sh

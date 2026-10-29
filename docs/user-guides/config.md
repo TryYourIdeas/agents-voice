@@ -292,3 +292,22 @@ openssl rsa -in k.pem -pubout -outform DER | base64 -w0
 Paste the output into `manifest.config.ts`'s `key` field, then update `EXTENSION_ID` in
 `ai-extension/server/.env` to match (the ID is the first 16 bytes of the SHA-256 hash of the
 DER public key, with each nibble mapped to a letter `a`–`p`).
+
+## LFM3 stacks (Liquid AI)
+
+Three standalone Compose files run the WhatsApp bot on the
+[LFM3 collection](https://huggingface.co/collections/LiquidAI/lfm3):
+
+| File | LLM (`llama-server`) | Voice in | Voice out | Images / video |
+|---|---|---|---|---|
+| `whatsap-lfm3-docker-compose.yml` | LFM3-1.7B | Whisper `stt` | no | no |
+| `whatsap-lfm3-stt-docker-compose.yml` | LFM3-1.7B | `lfm3-audio` (LFM3-Audio-2B Q4) | no | no |
+| `whatsap-lfm3-stt-tts-docker-compose.yml` | LFM3-1.7B | `lfm3-audio` | yes | no |
+| `whatsap-lfm3-stt-tts-vision-docker-compose.yml` | LFM3-VL-2B | `lfm3-audio` | yes | yes |
+
+- `lfm3-audio` (port 8010; LFM3-Audio-2B Q4_K_M GGUF run through llama.cpp b11960, built from source in its Dockerfile, ~1.1GB weights; each request spawns `llama-mtmd-cli`/`llama-tts`, so expect a model-load delay per call) serves `/stt` (same contract as Whisper) and `/tts` (JSON `{text, voice}` -> 24 kHz WAV) from the one GGUF.
+- `LFM3_HF_MODEL` (llama-server): `<repo>:<quant>`, downloaded to `./models/llama-cache` on first start.
+- `VOICE_REPLY=true` + `TTS_URL` (whatsap): reply to voice notes with a voice note; `TTS_VOICE` = `female|male`.
+- `VIDEO_FRAMES=<n>` (whatsap, max 16): video messages are sampled into n JPEG frames sent as images; unset/0 ignores videos.
+- `AGENT_RECURSION_LIMIT=60` (whatsap): max LangGraph steps per request (default 100). One tool call costs ~6 steps (tools node, model, plus a before/after node per logging middleware), so 60 allows about 10 tool calls; on hitting it the agent replies with a fallback message instead of looping.
+- The agent's `fetch_url` tool converts HTML pages to readable text (headings, list items, link targets; scripts/styles dropped) before applying its 50,000-character cap, so small local models can read news-style pages.
