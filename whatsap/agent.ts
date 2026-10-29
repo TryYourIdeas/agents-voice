@@ -1,3 +1,4 @@
+import { createMessageTypeTraceMiddleware } from "./lib/message-trace.ts";
 import { createAgent } from "langchain";
 import { HumanMessage, SystemMessage, type MessageContent } from "@langchain/core/messages";
 import { readFileSync } from "fs";
@@ -5,7 +6,7 @@ import { readFileSync } from "fs";
 import { model, sharedTools, sharedCheckpointer } from "./shared.ts";
 import { createMemoryMiddleware } from "./middleware/memory-middleware.ts";
 import { agentDelegationMiddleware } from "./middleware/agent-delegation-middleware.ts";
-import { extractText } from "./util.ts";
+import { extractText, agentRecursionLimit, isRecursionLimitError, RECURSION_LIMIT_REPLY } from "./util.ts";
 import { createSkillMiddleware, createLogModelCallMiddleware } from "langchain-agent-kit";
 
 export { model } from "./shared.ts";
@@ -13,6 +14,7 @@ export { listAvailableAgents, callNamedAgent, clearSession } from "./named-agent
 
 const skillMiddleware = createSkillMiddleware("./skills");
 const logModelCallMiddleware = createLogModelCallMiddleware({ prefix: "[Middleware]" });
+const messageTypeTraceMiddleware = createMessageTypeTraceMiddleware({ prefix: "[Middleware]" });
 
 const executerSystemPrompt = readFileSync("./prompts/executer-system.md", "utf-8");
 
@@ -39,6 +41,7 @@ function getDefaultAgent(deviceName: string): ReturnType<typeof createAgent> {
             createMemoryMiddleware(`devices/${deviceName}/memory`),
             agentDelegationMiddleware,
             logModelCallMiddleware,
+            messageTypeTraceMiddleware,
         ],
     });
     defaultAgents.set(deviceName, agent);
@@ -47,16 +50,23 @@ function getDefaultAgent(deviceName: string): ReturnType<typeof createAgent> {
 
 export async function callAgent(deviceName: string, content: MessageContent, localThreadId: string): Promise<string> {
     const agent = getDefaultAgent(deviceName);
-    const result = await agent.invoke(
+    let result;
+    try {
+        result = await agent.invoke(
         { messages: [new HumanMessage(content)] },
         {
-            recursionLimit: 100,
+            recursionLimit: agentRecursionLimit(),
             // Every conversation thread id is wrapped in a "device:<name>:"
             // prefix — constructed here, once, rather than by every caller —
             // see the design doc's "Multi-Client Refactor" section.
             configurable: { thread_id: `device:${deviceName}:${localThreadId}` },
         }
-    );
+        );
+    } catch (err) {
+        if (!isRecursionLimitError(err)) throw err;
+        console.error(`[${deviceName}] [debug] callAgent hit the recursion limit (${agentRecursionLimit()}); replying with a fallback`);
+        return RECURSION_LIMIT_REPLY;
+    }
     const { messages: updatedMessages } = result;
     return extractText(updatedMessages[updatedMessages.length - 1].content);
 }
