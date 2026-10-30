@@ -37,11 +37,30 @@ export function resolveDeviceDir(config: any): string {
 // reaching into another device's data or the rest of the app.
 export function resolveDeviceScopedPath(config: any, relativePath: string): string {
     const deviceDir = resolveDeviceDir(config);
-    const fullPath = path.join(deviceDir, relativePath);
+    // execute_bash runs from the app root, where this device's files are under
+    // devices/<device>/..., so models routinely pass that full form (copied from
+    // `find`/`ls` output) to the file tools. Accept it instead of doubling the
+    // prefix into a non-existent devices/<device>/devices/<device>/... path.
+    const normalized = path.normalize(relativePath);
+    const fullPath = path.join(
+        deviceDir,
+        normalized === deviceDir ? "." : normalized.startsWith(deviceDir + path.sep) ? normalized.slice(deviceDir.length + 1) : normalized
+    );
     const normalizedDeviceDir = path.resolve(deviceDir);
     const normalizedFullPath = path.resolve(fullPath);
     if (normalizedFullPath !== normalizedDeviceDir && !normalizedFullPath.startsWith(normalizedDeviceDir + path.sep)) {
         throw new Error(`Path '${relativePath}' escapes the device's own directory — only relative paths within it are allowed.`);
     }
     return fullPath;
+}
+
+// Working directory for shell commands: the same root the file tools use, so a
+// relative path means the same thing in execute_bash and in read_file/list_directory.
+// undefined = no device context (caller keeps the process cwd).
+export function resolveDeviceCwd(config: any): string | undefined {
+    try {
+        return path.resolve(resolveDeviceDir(config));
+    } catch {
+        return undefined;
+    }
 }

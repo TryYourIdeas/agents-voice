@@ -9,6 +9,7 @@
 import { CronExpressionParser } from "cron-parser";
 import { callAgent, callNamedAgent } from "./agent.ts";
 import { sendAgentResponse } from "./lib/send-agent-response.ts";
+import { recordMessageOwner, shortIdOf } from "./lib/message-owners.ts";
 import { listActiveTaskNames, tryReadTask, updateLastRun, archiveTask, readTaskMemory, type ScheduledTask } from "./lib/tasks.ts";
 
 const POLL_INTERVAL_MS = process.env.SCHEDULER_POLL_INTERVAL_MS
@@ -150,7 +151,12 @@ async function fireTask(deviceName: string, client: any, task: ScheduledTask): P
             ? await callAgent(deviceName, body, localThreadId)
             : await callNamedAgent(deviceName, task.targetAgent, body, localThreadId);
 
-    await sendAgentResponse(client, chatId, response);
+    // Remember which agent wrote the message so a reply to it (say, the user's
+    // story in answer to the daily story prompt) is routed back to that agent.
+    const owner = task.targetAgent === "default" ? undefined : task.targetAgent;
+    await sendAgentResponse(client, chatId, response, {
+        onSent: owner ? (sent) => { const id = shortIdOf(sent); if (id) recordMessageOwner(deviceName, id, owner); } : undefined,
+    });
 
     if (task.scheduleType === "once") {
         archiveTask(deviceName, task.name, "completed");
