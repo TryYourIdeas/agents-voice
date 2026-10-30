@@ -1,7 +1,7 @@
 # LFM3 STT+TTS+vision variant (3/3): as whatsap-lfm3-stt-tts-docker-compose.yml,
-# but llama-server serves LiquidAI/LFM3-VL-2B-GGUF (text + image understanding;
-# llama.cpp -hf also fetches its mmproj) instead of LFM3-1.7B, so images sent
-# or quoted in chat are analysed. Videos: whatsap extracts VIDEO_FRAMES evenly
+# plus a second llama-server (llama-server-vision) serving LiquidAI/LFM3-VL-2B-GGUF
+# (llama.cpp -hf also fetches its mmproj) for turns with images; llama-server
+# keeps LFM3-1.7B for all text. Images sent or quoted in chat are analysed. Videos: whatsap extracts VIDEO_FRAMES evenly
 # spaced JPEG frames with ffmpeg and sends them as images.
 #
 # Usage:
@@ -53,6 +53,9 @@ services:
       TTS_URL: http://lfm3-audio:8010
       TTS_VOICE: female
       VIDEO_FRAMES: "6"
+      # Turns that carry images/video frames go to the vision server; all other
+      # text goes to llama-server (LFM3-1.7B). See lib/vision-routing.ts.
+      VISION_BASE_URL: http://llama-server-vision:5050
       PLANTUML_URL: http://plantuml-renderer:3000
       # Comma-separated chat display names (as shown by "@ai list channels")
       # whose voice notes get transcribed and forwarded to the agent — see
@@ -60,6 +63,7 @@ services:
       STT_ALLOWED_CHATS: "@jlabrada71,+55 48 8458-8841"
     depends_on:
       - llama-server
+      - llama-server-vision
       - lfm3-audio
       - plantuml-renderer
     # QR code login (first run) is printed to stdout and needs a TTY.
@@ -189,7 +193,7 @@ services:
     build:
       context: .
       dockerfile: llama-server/Dockerfile.lfm3.gpu
-    image: llama-server-lfm3-vl-gpu:latest
+    image: llama-server-lfm3-gpu:latest
     env_file:
       # Shares MAX_TOKENS with the whatsap service — read by
       # start-llama-server-gpu.sh's -n flag (see that script).
@@ -197,7 +201,41 @@ services:
     ports:
       - "5050:5050"
     environment:
+      LFM3_HF_MODEL: LiquidAI/LFM3-1.7B-GGUF:Q8_0
+      LLAMA_CACHE: /models/llama-cache
+    volumes:
+      - ./models/llama-cache:/models/llama-cache
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5050/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 300s
+    restart: unless-stopped
+
+  llama-server-vision:
+    build:
+      context: .
+      dockerfile: llama-server/Dockerfile.lfm3.gpu
+    image: llama-server-lfm3-vl-gpu:latest
+    env_file:
+      # Shares MAX_TOKENS with the whatsap service — read by
+      # start-llama-server-gpu.sh's -n flag (see that script).
+      - ./.env.whatsap-llama
+    ports:
+      - "5051:5050"
+    environment:
       LFM3_HF_MODEL: LiquidAI/LFM3-VL-2B-GGUF:Q8_0
+      # Smaller than the text server's 40000: only image turns use this model, and
+      # the KV cache is what lets two models plus the audio CLIs fit in 12 GB.
+      CONTEXT_SIZE: "16384"
       LLAMA_CACHE: /models/llama-cache
     volumes:
       - ./models/llama-cache:/models/llama-cache

@@ -36,4 +36,15 @@ describe("sendAgentResponse voice replies", () => {
         expect(isBotSend("chat", "true_chat_ZZZ")).toBe(true);
         resetOwnMessages();
     });
+
+    it("reports every message it sends through onSent (text and voice)", async () => {
+        const sent = { id: { id: "SHORT1" } };
+        const onSent = vi.fn();
+        await sendAgentResponse({ sendMessage: vi.fn(async () => sent) }, "chat", "hello", { onSent });
+        expect(onSent).toHaveBeenCalledWith(sent);
+        onSent.mockClear();
+        await sendAgentResponse({ sendMessage: vi.fn(async () => sent) }, "chat", "hello", { voice: true, onSent });
+        expect(onSent).toHaveBeenCalledTimes(1);
+        resetOwnMessages();
+    });
 });

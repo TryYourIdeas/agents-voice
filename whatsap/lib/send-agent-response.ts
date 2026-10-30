@@ -26,7 +26,7 @@ const VOICE_VARIANTS = [
     { label: "audio attachment", mimetype: "audio/ogg", voice: false },
 ];
 
-export async function sendVoiceReply(client: any, chatId: string, text: string): Promise<boolean> {
+export async function sendVoiceReply(client: any, chatId: string, text: string, onSent?: (sent: unknown) => void): Promise<boolean> {
     let note: { data: string; mimetype: string };
     try {
         note = await synthesizeVoiceNote(text);
@@ -42,6 +42,7 @@ export async function sendVoiceReply(client: any, chatId: string, text: string):
             const media = new MessageMedia(variant.mimetype ?? note.mimetype, note.data, "voice.ogg");
             const sent = await client.sendMessage(chatId, media, variant.voice ? { sendAudioAsVoice: true } : undefined);
             sendDone(sent);
+            onSent?.(sent);
             return true;
         } catch (err) {
             sendDone();
@@ -57,27 +58,37 @@ export async function sendVoiceReply(client: any, chatId: string, text: string):
     return false;
 }
 
-export async function sendAgentResponse(client: any, chatId: string, response: string, opts: { voice?: boolean } = {}): Promise<void> {
-    if (opts.voice && voiceReplyEnabled() && (await sendVoiceReply(client, chatId, response))) return;
+// `onSent` is called with each WhatsApp Message the bot actually sends, so callers
+// can record who wrote it (lib/message-owners.ts).
+export async function sendAgentResponse(
+    client: any,
+    chatId: string,
+    response: string,
+    opts: { voice?: boolean; onSent?: (sent: unknown) => void } = {},
+): Promise<void> {
+    if (opts.voice && voiceReplyEnabled() && (await sendVoiceReply(client, chatId, response, opts.onSent))) return;
 
     const diagramPaths = [...response.matchAll(DIAGRAM_MARKER_RE)].map((m) => m[1]);
     const text = response.replace(DIAGRAM_MARKER_RE, "").replace(/\n{3,}/g, "\n\n").trim();
 
     if (diagramPaths.length === 0) {
-        await client.sendMessage(chatId, text);
+        const sent = await client.sendMessage(chatId, text);
+        opts.onSent?.(sent);
         return;
     }
 
     for (const [index, diagramPath] of diagramPaths.entries()) {
         try {
             const media = MessageMedia.fromFilePath(diagramPath);
-            await client.sendMessage(chatId, media, index === 0 && text ? { caption: text } : undefined);
+            const sent = await client.sendMessage(chatId, media, index === 0 && text ? { caption: text } : undefined);
+            opts.onSent?.(sent);
         } catch (err) {
             console.error(`[debug] failed to send diagram '${diagramPath}':`, err);
         }
     }
 
     if (text && diagramPaths.length > 1) {
-        await client.sendMessage(chatId, text);
+        const sent = await client.sendMessage(chatId, text);
+        opts.onSent?.(sent);
     }
 }

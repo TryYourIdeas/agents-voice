@@ -1,5 +1,32 @@
 # Changes
 
+## 2026-10-30 — Path consistency and reply routing
+
+- `whatsap`: `execute_bash` now runs in the device folder (same root as the file tools), the file
+  tools accept the full `devices/<device>/…` form instead of doubling the prefix, and the system prompt
+  states the convention. Two agent loops (recursion limit hit) came from the tools disagreeing about
+  where relative paths start.
+- `whatsap`: replies to a message written by a named agent (scheduled `target-agent`, `@ai @agent`,
+  task-scheduler) are routed back to that agent via `lib/message-owners.ts`; before, the default agent
+  got them without the context. The default agent is also told how to treat replies.
+
+## 2026-10-29 — Separate text and vision models (LFM3 vision stack)
+
+- `whatsap-lfm3-stt-tts-vision-docker-compose.yml`: `llama-server` now serves LFM3-1.7B for text;
+  new `llama-server-vision` serves LFM3-VL-2B for image turns. `whatsap` routes per model call via
+  `lib/vision-routing.ts` (`VISION_BASE_URL`), stripping old images for the text model. Other
+  stacks are unchanged.
+
+## 2026-10-29 — On-demand `send_audio` tool
+
+- `whatsap`: new `send_audio` agent tool that voices text from the conversation (a summary, a
+  story) with the TTS service and sends it to the current chat as a voice note, only when the user
+  asks. Reuses `sendVoiceReply`, so the echo guard applies. Chat resolution from the thread id was
+  extracted into `lib/thread-chat.ts` (also used by `get_current_chat`).
+- `whatsap`: an `@ai` reply to a message now includes that message's text (or the caption of a
+  quoted image/video) in what the agent receives (`lib/quoted-text.ts`); before, only quoted media
+  was forwarded, so "@ai make an audio of this" gave the agent nothing to read.
+
 ## 2026-10-13 — Fix Whisper `stt` crash-loop and `whatsap` devices dying on Chromium launch timeout
 
 - `whisper-speech-to-text`: `transformers>=4.45` resolved to 5.x on rebuild, which calls

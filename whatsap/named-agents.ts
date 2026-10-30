@@ -5,7 +5,8 @@ import { createAgent, tool } from "langchain";
 import { z } from "zod";
 import { HumanMessage, SystemMessage } from "@langchain/core/messages";
 
-import { model, sharedTools, sharedCheckpointer } from "./shared.ts";
+import { model, visionModel, sharedTools, sharedCheckpointer } from "./shared.ts";
+import { createVisionRoutingMiddleware } from "./lib/vision-routing.ts";
 import { createMemoryMiddleware } from "./middleware/memory-middleware.ts";
 import { extractText, agentRecursionLimit, isRecursionLimitError, RECURSION_LIMIT_REPLY } from "./util.ts";
 import {
@@ -18,6 +19,7 @@ import {
 
 const logModelCallMiddleware = createLogModelCallMiddleware({ prefix: "[Middleware]" });
 const messageTypeTraceMiddleware = createMessageTypeTraceMiddleware({ prefix: "[Middleware]" });
+const visionRoutingMiddleware = createVisionRoutingMiddleware(visionModel);
 
 // Named agents (whatsap/agents/<name>/agent.md) — each one is its own
 // createAgent instance per device (see agent.ts's getDefaultAgent for the
@@ -136,6 +138,7 @@ function getNamedAgent(deviceName: string, agentName: string): ReturnType<typeof
         middleware: [
             createSkillMiddleware("./skills", { extraDirs: [agentSkillsDir], allowedSkills: header.allowedSkills }),
             createMemoryMiddleware(`devices/${deviceName}/memory`),
+            visionRoutingMiddleware,
             logModelCallMiddleware,
             messageTypeTraceMiddleware,
         ],

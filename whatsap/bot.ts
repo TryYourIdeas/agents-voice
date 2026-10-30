@@ -13,6 +13,8 @@ import path from 'path'
 import { callAgent, callNamedAgent, listAvailableAgents, clearSession } from './agent.ts'
 import { sendAgentResponse } from './lib/send-agent-response.ts'
 import { isBotSend } from './lib/own-messages.ts'
+import { quotedMessageText, withQuotedText } from './lib/quoted-text.ts'
+import { ownerOfQuoted, recordMessageOwner, shortIdOf } from './lib/message-owners.ts'
 import { archiveTask, tasksDir } from './lib/tasks.ts'
 import { setWhatsAppClient, tryGetWhatsAppClient } from './lib/whatsapp-client.ts'
 import { setDeviceStatus, getDeviceStatus } from './lib/device-status.ts'
@@ -183,6 +185,19 @@ export function createDeviceBot(device: DeviceConfig): any {
     const debug = true;
     const MESSAGE = debug ? 'message_create' : 'message';
 
+    // A reply to a message one of the named agents wrote (the daily story prompt, an
+    // @agent answer, ...) goes back to that agent, which has the context for it; the
+    // default agent would have to guess. Only agents that still exist count.
+    const replyOwner = (message: any): string | undefined => {
+        const owner = ownerOfQuoted(deviceName, message.rawData);
+        if (owner && !listAvailableAgents().includes(owner)) return undefined;
+        if (owner) console.log(`[${deviceName}] [debug] reply to a message from agent '${owner}'; routing there`);
+        return owner;
+    };
+    // Records the agent as the author of every message sent, so replies to them route back.
+    const recordOwner = (agent: string | undefined) =>
+        agent ? (sent: unknown) => { const id = shortIdOf(sent); if (id) recordMessageOwner(deviceName, id, agent); } : undefined;
+
     client.on(MESSAGE, async (message: any) => {
         logToFile(deviceName, '---- message event ----');
         logToFile(deviceName, message);
@@ -228,9 +243,13 @@ export function createDeviceBot(device: DeviceConfig): any {
                     } else {
                         const transcript = await transcribeAudio(media);
                         console.log(`[${deviceName}] [debug] transcript:`, transcript);
-                        const response = await callAgent(deviceName, transcript, chatId);
+                        const input = withQuotedText(transcript, quotedMessageText(message.rawData));
+                        const owner = replyOwner(message);
+                        const response = owner
+                            ? await callNamedAgent(deviceName, owner, input, chatId)
+                            : await callAgent(deviceName, input, chatId);
                         console.log(`[${deviceName}] [debug] agent response:`, response);
-                        await sendAgentResponse(client, chatId, response, { voice: true });
+                        await sendAgentResponse(client, chatId, response, { voice: true, onSent: recordOwner(owner) });
                     }
                 }
             } catch (err) {
@@ -255,7 +274,7 @@ export function createDeviceBot(device: DeviceConfig): any {
                     '@ai list tasks — list active scheduled tasks\n' +
                     '@ai cancel task <name> — cancel a scheduled task\n' +
                     '@ai <message> — talk to the default agent\n' +
-                    '@ai <message> with an attached or quoted image/voice note — the agent sees the image or hears the transcribed audio\n' +
+                    '@ai <message> with an attached or quoted image/voice note/text — the agent sees the image, hears the transcribed audio, or reads the text you replied to\n' +
                     `Voice notes sent to: ${STT_ALLOWED_CHATS.join(', ')} — auto-transcribed and forwarded to the default agent`
                 );
             } else if (request.toLowerCase() === 'clear session') {
@@ -325,7 +344,7 @@ export function createDeviceBot(device: DeviceConfig): any {
                         // context hint here.
                         const response = await callNamedAgent(deviceName, 'task-scheduler', scheduleText, chatId);
                         console.log(`[${deviceName}] [debug] task-scheduler response:`, response);
-                        await sendAgentResponse(client, chatId, response);
+                        await sendAgentResponse(client, chatId, response, { onSent: recordOwner('task-scheduler') });
                     } catch (err) {
                         console.error(`[${deviceName}] [debug] schedule command failed:`, err);
                         await message.reply('Sorry, something went wrong creating that scheduled task.');
@@ -345,7 +364,7 @@ export function createDeviceBot(device: DeviceConfig): any {
                     try {
                         const response = await callNamedAgent(deviceName, agentName, agentMessage || 'Hi', chatId);
                         console.log(`[${deviceName}] [debug] named agent response:`, response);
-                        await sendAgentResponse(client, chatId, response);
+                        await sendAgentResponse(client, chatId, response, { onSent: recordOwner(agentName) });
                     } catch (err) {
                         console.error(`[${deviceName}] [debug] callNamedAgent('${agentName}') failed:`, err);
                         const available = listAvailableAgents();
@@ -359,7 +378,9 @@ export function createDeviceBot(device: DeviceConfig): any {
             } else {
                 try {
                     const { images, audioTranscripts } = await resolveIncomingMedia(client, message);
-                    const text = [request, ...audioTranscripts].filter(Boolean).join('\n\n');
+                    const quotedText = quotedMessageText(message.rawData);
+                    console.log(`[${deviceName}] [debug] quoted message: ${message.hasQuotedMsg ? `type=${message.rawData?.quotedMsg?.type} text=${quotedText ? quotedText.length + ' chars' : 'none'}` : 'none'}`);
+                    const text = [withQuotedText(request, quotedText), ...audioTranscripts].filter(Boolean).join('\n\n');
 
                     if (!text && images.length === 0) {
                         await message.reply('Sorry, I could not find anything to work with in that message.');
@@ -370,9 +391,13 @@ export function createDeviceBot(device: DeviceConfig): any {
                                 ...(text ? [{ type: 'text' as const, text }] : []),
                                 ...images.map((img) => ({ type: 'image' as const, mimeType: img.mimetype, data: img.data })),
                             ];
-                        const response = await callAgent(deviceName, content, chatId);
+                        // Images stay with the default agent (named agents take text only).
+                        const owner = images.length === 0 ? replyOwner(message) : undefined;
+                        const response = owner
+                            ? await callNamedAgent(deviceName, owner, text, chatId)
+                            : await callAgent(deviceName, content, chatId);
                         console.log(`[${deviceName}] [debug] agent response:`, response);
-                        await sendAgentResponse(client, chatId, response);
+                        await sendAgentResponse(client, chatId, response, { onSent: recordOwner(owner) });
                     }
                 } catch (err) {
                     console.error(`[${deviceName}] [debug] callAgent failed:`, err);

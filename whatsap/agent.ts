@@ -3,7 +3,8 @@ import { createAgent } from "langchain";
 import { HumanMessage, SystemMessage, type MessageContent } from "@langchain/core/messages";
 import { readFileSync } from "fs";
 
-import { model, sharedTools, sharedCheckpointer } from "./shared.ts";
+import { model, visionModel, sharedTools, sharedCheckpointer } from "./shared.ts";
+import { createVisionRoutingMiddleware } from "./lib/vision-routing.ts";
 import { createMemoryMiddleware } from "./middleware/memory-middleware.ts";
 import { agentDelegationMiddleware } from "./middleware/agent-delegation-middleware.ts";
 import { extractText, agentRecursionLimit, isRecursionLimitError, RECURSION_LIMIT_REPLY } from "./util.ts";
@@ -15,6 +16,7 @@ export { listAvailableAgents, callNamedAgent, clearSession } from "./named-agent
 const skillMiddleware = createSkillMiddleware("./skills");
 const logModelCallMiddleware = createLogModelCallMiddleware({ prefix: "[Middleware]" });
 const messageTypeTraceMiddleware = createMessageTypeTraceMiddleware({ prefix: "[Middleware]" });
+const visionRoutingMiddleware = createVisionRoutingMiddleware(visionModel);
 
 const executerSystemPrompt = readFileSync("./prompts/executer-system.md", "utf-8");
 
@@ -40,6 +42,7 @@ function getDefaultAgent(deviceName: string): ReturnType<typeof createAgent> {
             skillMiddleware,
             createMemoryMiddleware(`devices/${deviceName}/memory`),
             agentDelegationMiddleware,
+            visionRoutingMiddleware,
             logModelCallMiddleware,
             messageTypeTraceMiddleware,
         ],

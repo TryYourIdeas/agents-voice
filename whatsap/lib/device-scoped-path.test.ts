@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import path from "node:path";
-import { resolveDeviceDir, resolveDeviceScopedPath } from "./device-scoped-path.ts";
+import { resolveDeviceDir, resolveDeviceScopedPath, resolveDeviceCwd } from "./device-scoped-path.ts";
 
 function configWithThreadId(threadId: string | undefined) {
     return { configurable: { thread_id: threadId } };
@@ -49,3 +49,34 @@ describe("resolveDeviceScopedPath", () => {
         expect(() => resolveDeviceScopedPath(config, "a/b/../../../../etc/passwd")).toThrow(/escapes the device/);
     });
 });
+
+describe("resolveDeviceScopedPath with a path that already includes the device directory", () => {
+    const config = configWithThreadId("device:primary:chat-id");
+
+    it("accepts the full app-root path (what execute_bash/find print) without doubling the prefix", () => {
+        const expected = path.join("devices", "primary", "tasks", "x.md");
+        expect(resolveDeviceScopedPath(config, "devices/primary/tasks/x.md")).toBe(expected);
+        expect(resolveDeviceScopedPath(config, "./devices/primary/tasks/x.md")).toBe(expected);
+        expect(resolveDeviceScopedPath(config, "tasks/x.md")).toBe(expected);
+    });
+
+    it("only strips this device's own prefix", () => {
+        expect(resolveDeviceScopedPath(config, "devices/other/x.md")).toBe(path.join("devices", "primary", "devices", "other", "x.md"));
+    });
+
+    it("still rejects escapes after stripping", () => {
+        expect(() => resolveDeviceScopedPath(config, "devices/primary/../../../etc/passwd")).toThrow(/escapes/);
+    });
+});
+
+describe("resolveDeviceCwd", () => {
+    it("is the absolute device directory", () => {
+        expect(resolveDeviceCwd(configWithThreadId("device:primary:chat"))).toBe(path.resolve("devices", "primary"));
+    });
+
+    it("is undefined without device context", () => {
+        expect(resolveDeviceCwd(configWithThreadId(undefined))).toBeUndefined();
+        expect(resolveDeviceCwd(undefined)).toBeUndefined();
+    });
+});
+

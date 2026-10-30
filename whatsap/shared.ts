@@ -17,6 +17,7 @@ import { createScheduledTaskTool } from "./tools/create-scheduled-task.tool.ts";
 import { listScheduledTasksTool } from "./tools/list-scheduled-tasks.tool.ts";
 import { cancelScheduledTaskTool } from "./tools/cancel-scheduled-task.tool.ts";
 import { getCurrentChatTool } from "./tools/get-current-chat.tool.ts";
+import { sendAudioTool } from "./tools/send-audio.tool.ts";
 
 // Split out of agent.ts so named-agents.ts (which agent.ts's delegation
 // middleware needs) and agent.ts itself can both depend on the model/tools
@@ -42,11 +43,25 @@ export const model = new ChatAnthropic({
     streaming: true,
 });
 
+// Optional second model for turns that carry images (see lib/vision-routing.ts).
+// Unset VISION_BASE_URL = one model for everything, as before. It points at a
+// second llama-server because one llama-server process serves one model.
+export const visionModel = process.env.VISION_BASE_URL
+    ? new ChatAnthropic({
+          model: process.env.VISION_MODEL || process.env.ANTHROPIC_MODEL,
+          anthropicApiUrl: process.env.VISION_BASE_URL,
+          temperature: 0,
+          maxRetries: 2,
+          maxTokens: process.env.MAX_TOKENS ? Number(process.env.MAX_TOKENS) : undefined,
+          streaming: true,
+      })
+    : undefined;
+
 // const executeCodeTool = createExecuteCodeTool(model);
 const listDirectoryTool = createListDirectoryTool(model);
 const checkDirectoryExistsTool = createCheckDirectoryExistsTool(model);
 const createDirectoryTool = createCreateDirectoryTool(model);
 const executeBashTool = createExecuteBashTool();
 
-export const sharedTools = [readFileTool, writeFileTool, listDirectoryTool, checkDirectoryExistsTool, createDirectoryTool, executeBashTool, downloadFileTool, fetchUrlTool, webSearch, renderDiagramTool, createScheduledTaskTool, listScheduledTasksTool, cancelScheduledTaskTool, getCurrentChatTool];
+export const sharedTools = [readFileTool, writeFileTool, listDirectoryTool, checkDirectoryExistsTool, createDirectoryTool, executeBashTool, downloadFileTool, fetchUrlTool, webSearch, renderDiagramTool, createScheduledTaskTool, listScheduledTasksTool, cancelScheduledTaskTool, getCurrentChatTool, sendAudioTool];
 export const sharedCheckpointer = new MemorySaver();

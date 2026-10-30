@@ -1,40 +1,19 @@
 import { tool } from "langchain";
 import { z } from "zod";
 import { getWhatsAppClient } from "../lib/whatsapp-client.ts";
-import { parseDeviceThreadId } from "../lib/devices.ts";
-
-// Extracts the chat id out of whatever's left after the "device:<name>:"
-// prefix has already been parsed off by parseDeviceThreadId. Named-agent
-// thread ids are namespaced "agent:<agentName>:<chatId>" (see
-// named-agents.ts's callNamedAgent) — strip that prefix to get back the
-// raw WhatsApp chat id. Scheduled-task thread ids ("scheduled:<taskName>:
-// <timestamp>", see scheduler.ts) aren't a real chat id at all — there's
-// no "current chat" concept in that context, only the task's own fixed
-// destination-chat, so this deliberately doesn't try to resolve those.
-function extractChatId(rest: string): string | undefined {
-    if (rest.startsWith("scheduled:")) return undefined;
-    const match = rest.match(/^agent:[^:]+:(.+)$/);
-    return match ? match[1] : rest;
-}
+import { resolveThreadChat } from "../lib/thread-chat.ts";
 
 export const getCurrentChatTool = tool(
     async (_input, config) => {
-        const threadId = config?.configurable?.thread_id as string | undefined;
-        if (!threadId) {
-            return "Could not determine the current chat: no conversation context available.";
-        }
-
-        const parsed = parseDeviceThreadId(threadId);
-        if (!parsed) {
-            return "Could not determine the current chat: no device context available.";
-        }
-
-        const chatId = extractChatId(parsed.rest);
-        if (!chatId) {
+        const resolved = resolveThreadChat(config?.configurable?.thread_id as string | undefined);
+        if ("error" in resolved) {
+            if (resolved.error === "no-thread") return "Could not determine the current chat: no conversation context available.";
+            if (resolved.error === "no-device") return "Could not determine the current chat: no device context available.";
             return "There is no 'current chat' in this context (this is a scheduled task run, not a live conversation) — the destination chat must already be fixed on the task itself.";
         }
+        const { device, chatId } = resolved;
 
-        const client = getWhatsAppClient(parsed.device);
+        const client = getWhatsAppClient(device);
         const name: string | undefined = await client.pupPage!.evaluate((id: string) => {
             // @ts-ignore - window.require is whatsapp-web.js's own webpack
             // module loader, injected into the page, not typed. The global
