@@ -123,6 +123,15 @@ agent backed by Anthropic's Messages API (or the local `llama-server`, see `conf
   result back to the originating WhatsApp chat.
 - **Tools available to agents** — read/write/list files, execute bash, download a file, fetch a
   URL, web search (Tavily), render a PlantUML diagram, plus the scheduling tools above.
+- **Replies go back to the right agent** — when you reply (WhatsApp quote-reply) to a message a
+  specialized agent wrote — the daily story prompt from `story-coach`, an `@ai @agent …` answer, a
+  `task-scheduler` question — your reply (text or voice note) is handled by that same agent, with the
+  replied-to text as context, instead of the default agent. Replies to other messages go to the default
+  agent, which is told to hand them to a matching specialist.
+- **Audio on request** — ask the agent to turn text from the conversation into speech ("read that
+summary to me", "make an audio of the story") and it sends a WhatsApp voice note to the same chat
+via the `send_audio` tool. Audio is only generated when asked. Needs `TTS_URL` (see
+`config.md`).
 
 ## Device management UI (`devices-ui`)
 
