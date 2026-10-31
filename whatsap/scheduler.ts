@@ -7,6 +7,8 @@
 // resolution and delivery — see resolveChatIdByName/fireTask below).
 
 import { CronExpressionParser } from "cron-parser";
+import { describeNow } from "./lib/datetime.ts";
+import { RECURSION_LIMIT_REPLY } from "./util.ts";
 import { callAgent, callNamedAgent } from "./agent.ts";
 import { sendAgentResponse } from "./lib/send-agent-response.ts";
 import { recordMessageOwner, shortIdOf } from "./lib/message-owners.ts";
@@ -19,6 +21,40 @@ const POLL_INTERVAL_MS = process.env.SCHEDULER_POLL_INTERVAL_MS
 // Guards against a slow agent call overlapping the next tick, per device —
 // a Set instead of a single boolean since devices poll independently.
 const pollingDevices = new Set<string>();
+
+// A run that hits the agent's recursion limit produced nothing useful. It must
+// not count as a successful run (that silently skipped the day's work), but an
+// every-minute retry would burn model/search calls on a task that is stuck. So:
+// retry with a backoff a few times, then give up until the next schedule.
+export const MAX_STUCK_ATTEMPTS = 3;
+export const STUCK_RETRY_DELAY_MS = 10 * 60_000;
+const stuckRuns = new Map<string, { attempts: number; retryAt: number }>();
+const stuckKey = (device: string, task: string) => `${device}:${task}`;
+
+export function isStuckResponse(response: string): boolean {
+    return response === RECURSION_LIMIT_REPLY;
+}
+
+// Returns true when the run should be treated as finished (give up now).
+export function recordStuckRun(device: string, task: string, now = Date.now()): boolean {
+    const key = stuckKey(device, task);
+    const attempts = (stuckRuns.get(key)?.attempts ?? 0) + 1;
+    if (attempts >= MAX_STUCK_ATTEMPTS) {
+        stuckRuns.delete(key);
+        return true;
+    }
+    stuckRuns.set(key, { attempts, retryAt: now + STUCK_RETRY_DELAY_MS });
+    return false;
+}
+
+export function isStuckBackoff(device: string, task: string, now = Date.now()): boolean {
+    const entry = stuckRuns.get(stuckKey(device, task));
+    return !!entry && now < entry.retryAt;
+}
+
+export function clearStuckRun(device: string, task: string): void {
+    stuckRuns.delete(stuckKey(device, task));
+}
 
 export interface DeviceHandle {
     name: string;
@@ -53,7 +89,7 @@ async function pollOnce(deviceName: string, client: any): Promise<void> {
             const task = tryReadTask(deviceName, name);
             if (!task || task.status !== "active") continue;
             try {
-                if (isDue(task)) {
+                if (isDue(task) && !isStuckBackoff(deviceName, task.name)) {
                     console.log(`[scheduler] [${deviceName}] firing task '${task.name}'`);
                     await fireTask(deviceName, client, task);
                 }
@@ -83,21 +119,29 @@ export function isDue(task: ScheduledTask): boolean {
 // instead of relying on conversation history that no longer persists across
 // firings (see fireTask's threadId below). One-off tasks never call this —
 // they have no continuity concept at all.
-export function buildRecurringPrompt(task: ScheduledTask, priorNotes: string | undefined): string {
+export function buildRecurringPrompt(task: ScheduledTask, priorNotes: string | undefined, now: Date = new Date()): string {
     // Relative to the device's own directory, not the app root — my_write_file
     // (see lib/device-scoped-path.ts) auto-prefixes with devices/<device>/,
     // so the agent-facing path here must NOT include that prefix itself.
     const memoryPath = `tasks/memory/${task.name}.md`;
+    // The agent has no clock; stating "today" up front stops it anchoring on
+    // dates in its notes and re-researching old topics (the AI-news loop).
+    const d = describeNow(now, task.timezone);
+    const header = `Today is ${d.weekday}, ${d.date} (${d.timeZone}, now ${d.time.slice(0, 5)}). This run is for ${d.date}.\n\n`;
     if (priorNotes) {
         return (
-            `## Notes from previous runs\n\n${priorNotes}\n\n---\n\n## This run's task\n\n${task.body}\n\n` +
-            `If anything from this run is worth remembering next time, update your notes using the ` +
-            `write_file tool at ${memoryPath} — keep it concise (distilled notes, not a raw transcript); ` +
-            `overwrite rather than append.`
+            `${header}## Notes from previous runs\n\n${priorNotes}\n\n---\n\n` +
+            `The notes above record what EARLIER runs already covered. They are not today's facts: do not re-search or ` +
+            `re-verify them. Look for what is new since ${task.lastRun ?? "the last run"} and skip anything already covered.\n\n` +
+            `## This run's task\n\n${task.body}\n\n` +
+            `Do the work with a small number of searches, then write the results and finish. Never repeat a search ` +
+            `you already ran. If anything from this run is worth remembering next time, update your notes using the ` +
+            `write_file tool at ${memoryPath} — keep it concise (distilled notes: topics and URLs already covered, not ` +
+            `findings), and overwrite rather than append.`
         );
     }
     return (
-        `${task.body}\n\nThis is the first run of this recurring task. If continuity across future runs would ` +
+        `${header}${task.body}\n\nThis is the first run of this recurring task. If continuity across future runs would ` +
         `help (e.g. tracking progress, avoiding repeats), create ${memoryPath} with concise notes using the ` +
         `write_file tool, and keep it updated on future runs.`
     );
@@ -150,6 +194,25 @@ async function fireTask(deviceName: string, client: any, task: ScheduledTask): P
         task.targetAgent === "default"
             ? await callAgent(deviceName, body, localThreadId)
             : await callNamedAgent(deviceName, task.targetAgent, body, localThreadId);
+
+    if (isStuckResponse(response)) {
+        const giveUp = recordStuckRun(deviceName, task.name);
+        console.error(
+            `[scheduler] [${deviceName}] task '${task.name}' hit the agent recursion limit without finishing ` +
+                `(${giveUp ? "giving up until next schedule" : `retrying in ${STUCK_RETRY_DELAY_MS / 60_000} min`})`
+        );
+        if (!giveUp) return; // lastRun untouched => still due; backoff gates the retry
+        await sendAgentResponse(
+            client,
+            chatId,
+            `Scheduled task '${task.name}' failed ${MAX_STUCK_ATTEMPTS} times: the agent got stuck looping on tool calls ` +
+                `without finishing. It will try again at its next scheduled time.`
+        );
+        if (task.scheduleType === "once") archiveTask(deviceName, task.name, "failed");
+        else updateLastRun(deviceName, task.name, new Date().toISOString());
+        return;
+    }
+    clearStuckRun(deviceName, task.name);
 
     // Remember which agent wrote the message so a reply to it (say, the user's
     // story in answer to the daily story prompt) is routed back to that agent.

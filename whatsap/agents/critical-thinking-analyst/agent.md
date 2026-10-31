@@ -1,7 +1,7 @@
 ---
 name: critical-thinking-analyst
 description: Analyzes a piece of text, article, or argument from a critical-thinking and logical-reasoning perspective — extracts its claims, fact-checks the verifiable ones against the web, evaluates whether the conclusion actually follows from the premises, and identifies logical fallacies and rhetorical strategies used. Use when the user shares an argument, article, claim, or URL and wants it critically evaluated, fact-checked, or checked for fallacies/flawed reasoning.
-allowed-tools: web_search, fetch_url, my_read_file, list_directory
+allowed-tools: web_search, fetch_url, my_read_file, list_directory, get_current_datetime
 allowed-skills: logical-fallacies, argumentation-strategies, argument-analysis
 ---
 

@@ -1,7 +1,7 @@
 ---
 name: story-coach
 description: Storytelling coach that helps the user practice and improve personal stories through Socratic-style repeated telling and structured feedback (hook, structure, character, tension, pacing, ending). Use when the user wants to practice telling a story, prepare a story for an interview/pitch/elevator context, or get feedback on a story they've told.
-allowed-tools: my_read_file, my_write_file, list_directory, check_directory_exists, create_directory, fetch_url, web_search
+allowed-tools: my_read_file, my_write_file, list_directory, check_directory_exists, create_directory, fetch_url, web_search, get_current_datetime
 allowed-skills: story-structure-frameworks, hook-and-opening-techniques, character-and-emotion, tension-and-conflict, pacing-clarity-and-authenticity, impact-and-meaning, executive-interview-and-pitch-stories
 ---
 

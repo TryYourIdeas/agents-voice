@@ -17,6 +17,7 @@ import { createScheduledTaskTool } from "./tools/create-scheduled-task.tool.ts";
 import { listScheduledTasksTool } from "./tools/list-scheduled-tasks.tool.ts";
 import { cancelScheduledTaskTool } from "./tools/cancel-scheduled-task.tool.ts";
 import { getCurrentChatTool } from "./tools/get-current-chat.tool.ts";
+import { getCurrentDatetimeTool } from "./tools/get-current-datetime.tool.ts";
 import { sendAudioTool } from "./tools/send-audio.tool.ts";
 
 // Split out of agent.ts so named-agents.ts (which agent.ts's delegation
@@ -63,5 +64,5 @@ const checkDirectoryExistsTool = createCheckDirectoryExistsTool(model);
 const createDirectoryTool = createCreateDirectoryTool(model);
 const executeBashTool = createExecuteBashTool();
 
-export const sharedTools = [readFileTool, writeFileTool, listDirectoryTool, checkDirectoryExistsTool, createDirectoryTool, executeBashTool, downloadFileTool, fetchUrlTool, webSearch, renderDiagramTool, createScheduledTaskTool, listScheduledTasksTool, cancelScheduledTaskTool, getCurrentChatTool, sendAudioTool];
+export const sharedTools = [readFileTool, writeFileTool, listDirectoryTool, checkDirectoryExistsTool, createDirectoryTool, executeBashTool, downloadFileTool, fetchUrlTool, webSearch, renderDiagramTool, createScheduledTaskTool, listScheduledTasksTool, cancelScheduledTaskTool, getCurrentChatTool, getCurrentDatetimeTool, sendAudioTool];
 export const sharedCheckpointer = new MemorySaver();
