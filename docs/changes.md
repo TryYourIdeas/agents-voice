@@ -1,5 +1,17 @@
 # Changes
 
+## 2026-10-31 — Date awareness and the AI-news search loop
+
+- `whatsap`: the daily "AI news" scheduled task looped on `web_search` until the recursion limit
+  (Oct 30 and 31) and produced nothing after 2026-09-24. Cause: the agent had no clock, and its
+  task-memory note was a dated narrative of the Sep 24 run, so it kept re-verifying those stories.
+- New `get_current_datetime` tool and `datetimeMiddleware` (stamps every model call with today's date,
+  time and timezone); timezone from `AGENT_TIMEZONE` (then `TZ`, then the system zone).
+- Recurring-task prompts now state today's date and tell the agent notes are not today's facts.
+- `web_search` answers an identical repeated query (same thread) with a nudge instead of searching again.
+- The scheduler no longer counts a recursion-limit run as successful: it retries after 10 min, up to 3
+  attempts, then tells the chat and waits for the next schedule.
+
 ## 2026-10-30 — Path consistency and reply routing
 
 - `whatsap`: `execute_bash` now runs in the device folder (same root as the file tools), the file

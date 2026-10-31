@@ -7,6 +7,7 @@ import { HumanMessage, SystemMessage } from "@langchain/core/messages";
 
 import { model, visionModel, sharedTools, sharedCheckpointer } from "./shared.ts";
 import { createVisionRoutingMiddleware } from "./lib/vision-routing.ts";
+import { datetimeMiddleware } from "./middleware/datetime-middleware.ts";
 import { createMemoryMiddleware } from "./middleware/memory-middleware.ts";
 import { extractText, agentRecursionLimit, isRecursionLimitError, RECURSION_LIMIT_REPLY } from "./util.ts";
 import {
@@ -138,6 +139,7 @@ function getNamedAgent(deviceName: string, agentName: string): ReturnType<typeof
         middleware: [
             createSkillMiddleware("./skills", { extraDirs: [agentSkillsDir], allowedSkills: header.allowedSkills }),
             createMemoryMiddleware(`devices/${deviceName}/memory`),
+            datetimeMiddleware,
             visionRoutingMiddleware,
             logModelCallMiddleware,
             messageTypeTraceMiddleware,

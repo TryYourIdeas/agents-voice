@@ -1,4 +1,6 @@
 import { createWebSearchTool } from "langchain-agent-kit";
+import { tool } from "langchain";
+import { recordSearch, duplicateSearchMessage } from "../lib/search-dedupe.ts";
 import fs from "node:fs";
 import path from "node:path";
 import { resolveDeviceScopedPath } from "../lib/device-scoped-path.ts";
@@ -7,7 +9,7 @@ import { resolveDeviceScopedPath } from "../lib/device-scoped-path.ts";
 let searchCountBase = new Date().getTime();
 let searchCount = 0;
 
-export const webSearch = createWebSearchTool({
+const rawWebSearch = createWebSearchTool({
     onResult: (args, result, config) => {
         searchCount++;
 
@@ -27,3 +29,17 @@ export const webSearch = createWebSearchTool({
         );
     },
 });
+
+// Same name and schema as the kit's tool, plus a per-thread guard that answers
+// repeated identical queries with a nudge instead of searching again.
+export const webSearch = tool(
+    async (input, config) => {
+        const repeats = recordSearch(config?.configurable?.thread_id as string | undefined, input.query, input.topic);
+        if (repeats !== undefined) {
+            console.warn(`[web_search] duplicate query suppressed (seen ${repeats}x): "${input.query}"`);
+            return duplicateSearchMessage(input.query, repeats);
+        }
+        return rawWebSearch.invoke(input, config);
+    },
+    { name: rawWebSearch.name, description: rawWebSearch.description, schema: rawWebSearch.schema as any }
+);

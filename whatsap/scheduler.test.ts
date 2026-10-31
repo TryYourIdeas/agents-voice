@@ -1,5 +1,16 @@
 import { describe, it, expect } from "vitest";
-import { isDue, buildRecurringPrompt, isClientReady } from "./scheduler.ts";
+import {
+    isDue,
+    buildRecurringPrompt,
+    isClientReady,
+    isStuckResponse,
+    recordStuckRun,
+    isStuckBackoff,
+    clearStuckRun,
+    MAX_STUCK_ATTEMPTS,
+    STUCK_RETRY_DELAY_MS,
+} from "./scheduler.ts";
+import { RECURSION_LIMIT_REPLY } from "./util.ts";
 import type { ScheduledTask } from "./lib/tasks.ts";
 
 // Only the fields isDue actually reads are set on each fixture — the rest
@@ -63,6 +74,37 @@ describe("buildRecurringPrompt", () => {
         expect(prompt).toContain("Summarize today's news.");
         expect(prompt).toContain("## Notes from previous runs");
         expect(prompt).toContain("## This run's task");
+    });
+
+    it("states today's date in the task's timezone and warns that notes are not today's facts", () => {
+        const now = new Date("2026-10-31T09:04:00Z");
+        const prompt = buildRecurringPrompt(recurringTask, "On 2026-09-24 covered Gemini 4.", now);
+        expect(prompt).toContain("Today is Saturday, 2026-10-31");
+        expect(prompt).toContain("do not re-search");
+        expect(prompt.indexOf("Today is")).toBeLessThan(prompt.indexOf("## Notes from previous runs"));
+    });
+
+    it("states today's date on the first run too", () => {
+        expect(buildRecurringPrompt(recurringTask, undefined, new Date("2026-10-31T09:04:00Z"))).toContain("2026-10-31");
+    });
+});
+
+describe("stuck (recursion-limit) runs", () => {
+    it("recognises the recursion-limit fallback reply", () => {
+        expect(isStuckResponse(RECURSION_LIMIT_REPLY)).toBe(true);
+        expect(isStuckResponse("All done")).toBe(false);
+    });
+
+    it("backs off between retries then gives up after MAX_STUCK_ATTEMPTS", () => {
+        const t0 = 1_000_000;
+        clearStuckRun("d", "job");
+        for (let i = 1; i < MAX_STUCK_ATTEMPTS; i++) {
+            expect(recordStuckRun("d", "job", t0)).toBe(false);
+            expect(isStuckBackoff("d", "job", t0 + 1)).toBe(true);
+            expect(isStuckBackoff("d", "job", t0 + STUCK_RETRY_DELAY_MS)).toBe(false);
+        }
+        expect(recordStuckRun("d", "job", t0)).toBe(true);
+        expect(isStuckBackoff("d", "job", t0 + 1)).toBe(false);
     });
 });
 

@@ -1,7 +1,7 @@
 ---
 name: task-scheduler
 description: Creates, lists, and cancels scheduled tasks — one-off or recurring — that run an agent on a schedule and deliver the result to a WhatsApp chat. Use when the user wants to schedule something for later, set up a reminder, or automate a recurring check-in.
-allowed-tools: create_scheduled_task, list_scheduled_tasks, cancel_scheduled_task, get_current_chat, my_read_file, list_available_agents
+allowed-tools: create_scheduled_task, list_scheduled_tasks, cancel_scheduled_task, get_current_chat, my_read_file, list_available_agents, get_current_datetime
 allowed-skills: cron-scheduling
 ---
 

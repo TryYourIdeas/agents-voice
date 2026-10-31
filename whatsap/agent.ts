@@ -5,6 +5,7 @@ import { readFileSync } from "fs";
 
 import { model, visionModel, sharedTools, sharedCheckpointer } from "./shared.ts";
 import { createVisionRoutingMiddleware } from "./lib/vision-routing.ts";
+import { datetimeMiddleware } from "./middleware/datetime-middleware.ts";
 import { createMemoryMiddleware } from "./middleware/memory-middleware.ts";
 import { agentDelegationMiddleware } from "./middleware/agent-delegation-middleware.ts";
 import { extractText, agentRecursionLimit, isRecursionLimitError, RECURSION_LIMIT_REPLY } from "./util.ts";
@@ -41,6 +42,7 @@ function getDefaultAgent(deviceName: string): ReturnType<typeof createAgent> {
         middleware: [
             skillMiddleware,
             createMemoryMiddleware(`devices/${deviceName}/memory`),
+            datetimeMiddleware,
             agentDelegationMiddleware,
             visionRoutingMiddleware,
             logModelCallMiddleware,

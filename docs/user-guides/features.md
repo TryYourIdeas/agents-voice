@@ -132,6 +132,9 @@ agent backed by Anthropic's Messages API (or the local `llama-server`, see `conf
 summary to me", "make an audio of the story") and it sends a WhatsApp voice note to the same chat
 via the `send_audio` tool. Audio is only generated when asked. Needs `TTS_URL` (see
 `config.md`).
+- **Date and time awareness** — every agent call is stamped with today's date, time and timezone,
+  and the `get_current_datetime` tool returns exact values (optionally for another timezone). Recurring
+  task runs are told which day they are for. Configure the zone with `AGENT_TIMEZONE`.
 
 ## Device management UI (`devices-ui`)
 
