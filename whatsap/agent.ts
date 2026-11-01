@@ -53,14 +53,14 @@ function getDefaultAgent(deviceName: string): ReturnType<typeof createAgent> {
     return agent;
 }
 
-export async function callAgent(deviceName: string, content: MessageContent, localThreadId: string): Promise<string> {
+export async function callAgent(deviceName: string, content: MessageContent, localThreadId: string, opts?: { recursionLimit?: number }): Promise<string> {
     const agent = getDefaultAgent(deviceName);
     let result;
     try {
         result = await agent.invoke(
         { messages: [new HumanMessage(content)] },
         {
-            recursionLimit: agentRecursionLimit(),
+            recursionLimit: opts?.recursionLimit ?? agentRecursionLimit(),
             // Every conversation thread id is wrapped in a "device:<name>:"
             // prefix — constructed here, once, rather than by every caller —
             // see the design doc's "Multi-Client Refactor" section.

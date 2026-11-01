@@ -70,6 +70,7 @@ services:
     environment:
       # Small local models can loop on web_search; fail fast instead of 100 steps.
       AGENT_RECURSION_LIMIT: "60"
+      AGENT_TIMEZONE: ${AGENT_TIMEZONE:-America/Sao_Paulo}
       # Enables [trace] message-type logging and other debug tracing.
       NUXT_ADD_DEBUG_LOGS: "true"
       STT_URL: http://stt:8001

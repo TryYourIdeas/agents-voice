@@ -19,6 +19,14 @@ export function agentRecursionLimit(): number {
     return Number.isFinite(n) && n > 0 ? n : 100;
 }
 
+// Scheduled tasks are batch jobs (research, write several files, report) with
+// no user waiting, so they get more headroom than a chat reply: twice the chat
+// limit unless SCHEDULED_RECURSION_LIMIT says otherwise.
+export function scheduledRecursionLimit(): number {
+    const n = Number.parseInt(process.env.SCHEDULED_RECURSION_LIMIT || '', 10);
+    return Number.isFinite(n) && n > 0 ? n : agentRecursionLimit() * 2;
+}
+
 export const RECURSION_LIMIT_REPLY =
     "Sorry, I got stuck looping on tool calls without reaching an answer. Please try rephrasing or asking something narrower.";
 

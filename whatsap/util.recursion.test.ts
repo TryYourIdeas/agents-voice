@@ -1,7 +1,7 @@
 import { describe, it, expect, afterEach } from "vitest";
-import { agentRecursionLimit, isRecursionLimitError } from "./util.ts";
+import { scheduledRecursionLimit, agentRecursionLimit, isRecursionLimitError } from "./util.ts";
 
-afterEach(() => { delete process.env.AGENT_RECURSION_LIMIT; });
+afterEach(() => { delete process.env.AGENT_RECURSION_LIMIT; delete process.env.SCHEDULED_RECURSION_LIMIT; });
 
 describe("recursion limit helpers", () => {
     it("defaults to 100 and honours AGENT_RECURSION_LIMIT", () => {
@@ -14,5 +14,11 @@ describe("recursion limit helpers", () => {
     it("recognises LangGraph's recursion error", () => {
         expect(isRecursionLimitError({ lc_error_code: "GRAPH_RECURSION_LIMIT" })).toBe(true);
         expect(isRecursionLimitError(new Error("x"))).toBe(false);
+    });
+    it("gives scheduled tasks twice the chat limit unless overridden", () => {
+        process.env.AGENT_RECURSION_LIMIT = "60";
+        expect(scheduledRecursionLimit()).toBe(120);
+        process.env.SCHEDULED_RECURSION_LIMIT = "90";
+        expect(scheduledRecursionLimit()).toBe(90);
     });
 });
