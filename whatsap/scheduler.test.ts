@@ -6,6 +6,8 @@ import {
     isStuckResponse,
     recordStuckRun,
     isStuckBackoff,
+    stuckAttempts,
+    RESUME_NOTE,
     clearStuckRun,
     MAX_STUCK_ATTEMPTS,
     STUCK_RETRY_DELAY_MS,
@@ -84,6 +86,19 @@ describe("buildRecurringPrompt", () => {
         expect(prompt.indexOf("Today is")).toBeLessThan(prompt.indexOf("## Notes from previous runs"));
     });
 
+    it("asks for stories from the last 24 hours and tells the agent to stop after saving", () => {
+        const prompt = buildRecurringPrompt(recurringTask, "notes", new Date("2026-10-31T09:04:00Z"));
+        expect(prompt).toContain("last 24 hours");
+        expect(prompt).toContain("do not re-list or re-read files");
+        expect(prompt).toContain("403/404");
+        expect(prompt).not.toContain(RESUME_NOTE);
+    });
+
+    it("adds a resume note when an earlier attempt got stuck", () => {
+        expect(buildRecurringPrompt(recurringTask, "notes", new Date(), true)).toContain(RESUME_NOTE);
+        expect(buildRecurringPrompt(recurringTask, undefined, new Date(), true)).toContain(RESUME_NOTE);
+    });
+
     it("states today's date on the first run too", () => {
         expect(buildRecurringPrompt(recurringTask, undefined, new Date("2026-10-31T09:04:00Z"))).toContain("2026-10-31");
     });
@@ -103,6 +118,7 @@ describe("stuck (recursion-limit) runs", () => {
             expect(isStuckBackoff("d", "job", t0 + 1)).toBe(true);
             expect(isStuckBackoff("d", "job", t0 + STUCK_RETRY_DELAY_MS)).toBe(false);
         }
+        expect(stuckAttempts("d", "job")).toBe(MAX_STUCK_ATTEMPTS - 1);
         expect(recordStuckRun("d", "job", t0)).toBe(true);
         expect(isStuckBackoff("d", "job", t0 + 1)).toBe(false);
     });

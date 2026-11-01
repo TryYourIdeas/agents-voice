@@ -154,7 +154,8 @@ export async function callNamedAgent(
     deviceName: string,
     agentName: string,
     message: string,
-    localThreadId: string
+    localThreadId: string,
+    opts?: { recursionLimit?: number }
 ): Promise<string> {
     const namedAgent = getNamedAgent(deviceName, agentName);
     let result;
@@ -162,7 +163,7 @@ export async function callNamedAgent(
         result = await namedAgent.invoke(
         { messages: [new HumanMessage(message)] },
         {
-            recursionLimit: agentRecursionLimit(),
+            recursionLimit: opts?.recursionLimit ?? agentRecursionLimit(),
             configurable: {
                 // Namespaced by device and agent name so switching agents (or
                 // talking to the default agent), or switching devices, never

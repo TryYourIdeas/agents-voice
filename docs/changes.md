@@ -9,8 +9,13 @@
   time and timezone); timezone from `AGENT_TIMEZONE` (then `TZ`, then the system zone).
 - Recurring-task prompts now state today's date and tell the agent notes are not today's facts.
 - `web_search` answers an identical repeated query (same thread) with a nudge instead of searching again.
-- The scheduler no longer counts a recursion-limit run as successful: it retries after 10 min, up to 3
-  attempts, then tells the chat and waits for the next schedule.
+- The scheduler no longer counts a recursion-limit run as successful: it retries once after 10 min, then
+  tells the chat and waits for the next schedule.
+- Follow-up from the Nov 1 run (date fix worked, but it still hit the limit): attempt 1 saved everything
+  then kept re-verifying; the blind retries re-read and re-fetched dead URLs. Retries now carry a resume
+  note, the prompt says to skip failed (403/404) pages and stop once files are saved, "new since
+  <timestamp>" became "published in the last 24 hours", scheduled runs get `SCHEDULED_RECURSION_LIMIT`
+  (default 2x chat limit), and the lfm3 compose files set `AGENT_TIMEZONE`.
 
 ## 2026-10-30 — Path consistency and reply routing
 

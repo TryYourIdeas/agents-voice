@@ -8,7 +8,7 @@
 
 import { CronExpressionParser } from "cron-parser";
 import { describeNow } from "./lib/datetime.ts";
-import { RECURSION_LIMIT_REPLY } from "./util.ts";
+import { RECURSION_LIMIT_REPLY, scheduledRecursionLimit } from "./util.ts";
 import { callAgent, callNamedAgent } from "./agent.ts";
 import { sendAgentResponse } from "./lib/send-agent-response.ts";
 import { recordMessageOwner, shortIdOf } from "./lib/message-owners.ts";
@@ -26,7 +26,7 @@ const pollingDevices = new Set<string>();
 // not count as a successful run (that silently skipped the day's work), but an
 // every-minute retry would burn model/search calls on a task that is stuck. So:
 // retry with a backoff a few times, then give up until the next schedule.
-export const MAX_STUCK_ATTEMPTS = 3;
+export const MAX_STUCK_ATTEMPTS = 2;
 export const STUCK_RETRY_DELAY_MS = 10 * 60_000;
 const stuckRuns = new Map<string, { attempts: number; retryAt: number }>();
 const stuckKey = (device: string, task: string) => `${device}:${task}`;
@@ -50,6 +50,10 @@ export function recordStuckRun(device: string, task: string, now = Date.now()): 
 export function isStuckBackoff(device: string, task: string, now = Date.now()): boolean {
     const entry = stuckRuns.get(stuckKey(device, task));
     return !!entry && now < entry.retryAt;
+}
+
+export function stuckAttempts(device: string, task: string): number {
+    return stuckRuns.get(stuckKey(device, task))?.attempts ?? 0;
 }
 
 export function clearStuckRun(device: string, task: string): void {
@@ -119,7 +123,17 @@ export function isDue(task: ScheduledTask): boolean {
 // instead of relying on conversation history that no longer persists across
 // firings (see fireTask's threadId below). One-off tasks never call this —
 // they have no continuity concept at all.
-export function buildRecurringPrompt(task: ScheduledTask, priorNotes: string | undefined, now: Date = new Date()): string {
+export const RESUME_NOTE =
+    `NOTE: an earlier attempt at this same run ran out of steps, possibly after saving some of its output. ` +
+    `First list the output folder for today's files. Finish only what is missing — do not redo, re-read or ` +
+    `re-verify what is already saved — then send the summary and stop.\n\n`;
+
+export function buildRecurringPrompt(
+    task: ScheduledTask,
+    priorNotes: string | undefined,
+    now: Date = new Date(),
+    resuming = false
+): string {
     // Relative to the device's own directory, not the app root — my_write_file
     // (see lib/device-scoped-path.ts) auto-prefixes with devices/<device>/,
     // so the agent-facing path here must NOT include that prefix itself.
@@ -127,15 +141,19 @@ export function buildRecurringPrompt(task: ScheduledTask, priorNotes: string | u
     // The agent has no clock; stating "today" up front stops it anchoring on
     // dates in its notes and re-researching old topics (the AI-news loop).
     const d = describeNow(now, task.timezone);
-    const header = `Today is ${d.weekday}, ${d.date} (${d.timeZone}, now ${d.time.slice(0, 5)}). This run is for ${d.date}.\n\n`;
+    const header =
+        `Today is ${d.weekday}, ${d.date} (${d.timeZone}, now ${d.time.slice(0, 5)}). This run is for ${d.date}.\n\n` +
+        (resuming ? RESUME_NOTE : "");
     if (priorNotes) {
         return (
             `${header}## Notes from previous runs\n\n${priorNotes}\n\n---\n\n` +
             `The notes above record what EARLIER runs already covered. They are not today's facts: do not re-search or ` +
-            `re-verify them. Look for what is new since ${task.lastRun ?? "the last run"} and skip anything already covered.\n\n` +
+            `re-verify them. Look for stories published today or in the last 24 hours and skip anything already covered.\n\n` +
             `## This run's task\n\n${task.body}\n\n` +
             `Do the work with a small number of searches, then write the results and finish. Never repeat a search ` +
-            `you already ran. If anything from this run is worth remembering next time, update your notes using the ` +
+            `you already ran. If a page fails to load (403/404), skip that item — do not retry it. Once the files, ` +
+            `index and notes are written, send the summary and stop: do not re-list or re-read files to verify them. ` +
+            `If anything from this run is worth remembering next time, update your notes using the ` +
             `write_file tool at ${memoryPath} — keep it concise (distilled notes: topics and URLs already covered, not ` +
             `findings), and overwrite rather than append.`
         );
@@ -188,12 +206,13 @@ async function fireTask(deviceName: string, client: any, task: ScheduledTask): P
     const localThreadId = `scheduled:${task.name}:${Date.now()}`;
 
     const body =
-        task.scheduleType === "recurring" ? buildRecurringPrompt(task, readTaskMemory(deviceName, task.name)) : task.body;
+        task.scheduleType === "recurring" ? buildRecurringPrompt(task, readTaskMemory(deviceName, task.name), new Date(), stuckAttempts(deviceName, task.name) > 0)
+            : task.body;
 
     const response =
         task.targetAgent === "default"
-            ? await callAgent(deviceName, body, localThreadId)
-            : await callNamedAgent(deviceName, task.targetAgent, body, localThreadId);
+            ? await callAgent(deviceName, body, localThreadId, { recursionLimit: scheduledRecursionLimit() })
+            : await callNamedAgent(deviceName, task.targetAgent, body, localThreadId, { recursionLimit: scheduledRecursionLimit() });
 
     if (isStuckResponse(response)) {
         const giveUp = recordStuckRun(deviceName, task.name);
@@ -205,8 +224,8 @@ async function fireTask(deviceName: string, client: any, task: ScheduledTask): P
         await sendAgentResponse(
             client,
             chatId,
-            `Scheduled task '${task.name}' failed ${MAX_STUCK_ATTEMPTS} times: the agent got stuck looping on tool calls ` +
-                `without finishing. It will try again at its next scheduled time.`
+            `Scheduled task '${task.name}' did not finish after ${MAX_STUCK_ATTEMPTS} attempts: the agent kept looping on ` +
+                `tool calls without replying. Some of its output may already be saved. It will run again at its next scheduled time.`
         );
         if (task.scheduleType === "once") archiveTask(deviceName, task.name, "failed");
         else updateLastRun(deviceName, task.name, new Date().toISOString());
