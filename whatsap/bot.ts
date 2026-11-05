@@ -16,6 +16,7 @@ import { isBotSend } from './lib/own-messages.ts'
 import { quotedMessageText, withQuotedText } from './lib/quoted-text.ts'
 import { ownerOfQuoted, recordMessageOwner, shortIdOf } from './lib/message-owners.ts'
 import { archiveTask, tasksDir } from './lib/tasks.ts'
+import { parseSaveMembersCommand, saveChannelMembers } from './lib/channel-members.ts'
 import { setWhatsAppClient, tryGetWhatsAppClient } from './lib/whatsapp-client.ts'
 import { setDeviceStatus, getDeviceStatus } from './lib/device-status.ts'
 import type { DeviceConfig } from './lib/devices.ts'
@@ -267,6 +268,8 @@ export function createDeviceBot(device: DeviceConfig): any {
                     'Available commands:\n' +
                     '!ping — health check, replies pong\n' +
                     '@ai help — show this list\n' +
+                    '@ai list groups — list only the chats that are groups\n' +
+                    '@ai save <channel> members — save a group\'s member list to devices/<device>/channels/<channel>/members.md\n' +
                     '@ai list agents — list available named agents (./agents/*)\n' +
                     '@ai @agent <agent name> [message] — talk to a named agent\n' +
                     '@ai clear session — start fresh, forgetting this chat\'s conversation with every agent\n' +
@@ -306,6 +309,68 @@ export function createDeviceBot(device: DeviceConfig): any {
                 } catch (err) {
                     console.error(`[${deviceName}] [debug] list channels failed:`, err);
                     await message.reply('Sorry, something went wrong listing channels.');
+                }
+            } else if (request.toLowerCase() === 'list groups') {
+                try {
+                    // Same direct chat-store read as "list channels" (see above for why
+                    // not client.getChats()), filtered to group chats.
+                    const names: string[] = await client.pupPage!.evaluate(() => {
+                        // @ts-ignore - whatsapp-web.js's injected webpack loader, untyped
+                        return window.require('WAWebCollections').Chat.getModelsArray()
+                            .filter((chat: any) => chat.isGroup)
+                            .map((chat: any) => chat.formattedTitle || chat.name || chat.id.user);
+                    });
+                    await message.reply(names.length > 0 ? `Available groups:\n${names.join('\n')}` : 'No groups found.');
+                } catch (err) {
+                    console.error(`[${deviceName}] [debug] list groups failed:`, err);
+                    await message.reply('Sorry, something went wrong listing groups.');
+                }
+            } else if (/^save\b.*\bmembers$/i.test(request)) {
+                const channelName = parseSaveMembersCommand(request);
+                if (!channelName) {
+                    await message.reply('Usage: @ai save <channel> members');
+                } else {
+                    try {
+                        const result: { status: 'ok' | 'not-found' | 'ambiguous' | 'not-group'; members?: { name?: string; phone: string; isAdmin: boolean }[] } =
+                            await client.pupPage!.evaluate((wanted: string) => {
+                                // @ts-ignore - whatsapp-web.js's injected webpack loader, untyped
+                                const collections = window.require('WAWebCollections');
+                                const matches = collections.Chat.getModelsArray().filter((chat: any) =>
+                                    (chat.formattedTitle || chat.name || chat.id.user || '').toLowerCase() === wanted.toLowerCase()
+                                );
+                                if (matches.length === 0) return { status: 'not-found' };
+                                if (matches.length > 1) return { status: 'ambiguous' };
+                                const chat = matches[0];
+                                if (!chat.isGroup) return { status: 'not-group' };
+                                const participants = chat.groupMetadata?.participants?.getModelsArray?.() ?? [];
+                                return {
+                                    status: 'ok',
+                                    members: participants.map((p: any) => {
+                                        const contact = collections.Contact.get(p.id);
+                                        return {
+                                            name: contact?.name || contact?.pushname || undefined,
+                                            phone: p.id.user,
+                                            isAdmin: !!(p.isAdmin || p.isSuperAdmin),
+                                        };
+                                    }),
+                                };
+                            }, channelName);
+                        if (result.status === 'not-found') {
+                            await message.reply(`Channel '${channelName}' not found. Use '@ai list channels' to see exact names.`);
+                        } else if (result.status === 'ambiguous') {
+                            await message.reply(`More than one chat is named '${channelName}', so nothing was saved.`);
+                        } else if (result.status === 'not-group') {
+                            await message.reply(`'${channelName}' is not a group, so it has no member list.`);
+                        } else {
+                            const members = result.members ?? [];
+                            const file = saveChannelMembers(deviceName, channelName, members);
+                            console.log(`[${deviceName}] [debug] saved ${members.length} members of '${channelName}' to ${file}`);
+                            await message.reply(`Saved ${members.length} members of '${channelName}' to ${file}`);
+                        }
+                    } catch (err) {
+                        console.error(`[${deviceName}] [debug] save members '${channelName}' failed:`, err);
+                        await message.reply(`Sorry, something went wrong saving the members of '${channelName}'.`);
+                    }
                 }
             } else if (request.toLowerCase() === 'list agents') {
                 const agents = listAvailableAgents();

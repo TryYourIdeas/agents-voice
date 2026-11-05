@@ -27,6 +27,8 @@ Chromium flags) and calls WhatsApp Web's own internal JS functions from inside t
 |---|---|
 | `!ping` (any chat) | Replies `pong` via both `client.sendMessage()` and `message.reply()` |
 | `@ai list channels` | Calls `client.getChats()`, replies with a plain-text list of chat names |
+| `@ai list groups` | Same chat-store read, filtered to group chats |
+| `@ai save <channel> members` | Writes the group's members to `devices/<device>/channels/<channel-name>/members.md` |
 | `@ai <anything else>` | Forwards the text to the LangChain/Anthropic agent (`agent.ts`) via `callAgent()`, replies with its response |
 | Every message | Logged verbatim (body + sender metadata) to `logs.txt` via `logToFile()` |
 
