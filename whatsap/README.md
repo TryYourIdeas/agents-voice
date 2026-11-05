@@ -42,6 +42,8 @@ Once connected, in any chat the bot is part of:
 
 - `!ping` → replies `pong` (health check)
 - `@ai list channels` → replies with the names of every chat (group and individual) the bot is currently part of, handled directly without going through the agent
+- `@ai list groups` → same, but only chats that are groups
+- `@ai save <channel> members` → saves that group's members to `devices/<device>/channels/<channel-name>/members.md`
 - `@ai <message>` → forwards `<message>` to the LangChain/Anthropic agent and replies with its response
 
 Every raw WhatsApp event is logged to `logs.txt` in the project root.

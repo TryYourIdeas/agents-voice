@@ -206,6 +206,11 @@ Send messages to/from a linked device's WhatsApp account, prefixed with `@ai`:
 4. `@ai clear session` — forget the conversation so far in this chat and start fresh.
 5. `@ai list channels` — list every chat the bot can see, by display name (useful for setting
    `STT_ALLOWED_CHATS`, see [`config.md`](./config.md)).
+6. `@ai list groups` — list only the chats that are groups.
+7. `@ai save Family Group members` — save that group's member list to
+   `devices/<device>/channels/family-group/members.md` (name lowercased, spaces/symbols become `-`;
+   re-running overwrites). The name must match a chat from `@ai list channels` (case-insensitive);
+   non-groups, unknown names, and names shared by several chats are rejected with a message.
 
 Voice notes sent to an allow-listed chat (`STT_ALLOWED_CHATS`, default `@jlabrada71`) are
 transcribed and forwarded to the default agent automatically — no `@ai` prefix needed.

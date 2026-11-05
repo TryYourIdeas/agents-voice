@@ -97,6 +97,8 @@ agent backed by Anthropic's Messages API (or the local `llama-server`, see `conf
   - `@ai @agent <agent name> [message]` — talk to a named agent instead (see below).
   - `@ai list agents` — list available named agents.
   - `@ai list channels` — list every chat the bot can see, by display name.
+  - `@ai list groups` — list only the chats that are groups.
+  - `@ai save <channel> members` — save a group's members (name, phone, admin) to `devices/<device>/channels/<channel-name>/members.md`.
   - `@ai clear session` — forget this chat's conversation with every agent.
   - `@ai schedule <describe task and timing>` — create a one-off or recurring scheduled task.
   - `@ai list tasks` / `@ai cancel task <name>` — manage scheduled tasks.

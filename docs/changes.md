@@ -111,3 +111,7 @@ agent. See `docs/superpowers/specs/2026-09-22-langchain-agent-kit-extraction-des
 
 File/directory/bash tools remain project-specific for now (deferred to a follow-up PR —
 they take different shapes between the two agents).
+
+## 2026-11-05 — `@ai list groups` and `@ai save <channel> members`
+
+New local WhatsApp commands (no agent call). `list groups` shows group chats only; `save <channel> members` writes a group's member list to `devices/<device>/channels/<channel-name>/members.md`. Helpers in `whatsap/lib/channel-members.ts` (vitest-covered); handlers in `whatsap/bot.ts`, verified by hand against a live client.
