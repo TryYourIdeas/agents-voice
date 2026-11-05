@@ -65,7 +65,7 @@ services:
       # Comma-separated chat display names (as shown by "@ai list channels")
       # whose voice notes get transcribed and forwarded to the agent — see
       # index.ts. Audio sent to any other chat is left untouched.
-      STT_ALLOWED_CHATS: "@jlabrada71"
+      STT_ALLOWED_CHATS: "@jlabrada71,+55 48 8458-8841"
     depends_on:
       - llama-server
       - stt

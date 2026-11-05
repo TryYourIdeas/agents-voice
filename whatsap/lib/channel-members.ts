@@ -17,7 +17,8 @@ export interface ChannelMember {
 // channel whose own name ends in "members" still works.
 export function parseSaveMembersCommand(request: string): string | undefined {
     const match = request.trim().match(/^save\s+([\s\S]+?)\s+members$/i);
-    const name = match?.[1]?.trim();
+    // "list channels" shows groups as "<name> (group)"; accept that form too.
+    const name = match?.[1]?.trim().replace(/\s+\(group\)$/i, "");
     return name ? name : undefined;
 }
 
