@@ -14,6 +14,9 @@ describe("parseSaveMembersCommand", () => {
     it("keeps a trailing 'members' that belongs to the name", () => {
         expect(parseSaveMembersCommand("save Team members members")).toBe("Team members");
     });
+    it("accepts the '(group)' suffix shown by list channels", () => {
+        expect(parseSaveMembersCommand("save Family Group (group) members")).toBe("Family Group");
+    });
     it("returns undefined when name or suffix is missing", () => {
         expect(parseSaveMembersCommand("save members")).toBeUndefined();
         expect(parseSaveMembersCommand("save Family")).toBeUndefined();

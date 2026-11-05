@@ -302,7 +302,7 @@ export function createDeviceBot(device: DeviceConfig): any {
                         // getChatNameById's comment above for why this replaced
                         // window.Store as of whatsapp-web.js@1.34.7.
                         return window.require('WAWebCollections').Chat.getModelsArray().map((chat: any) =>
-                            chat.isGroup ? `${chat.formattedTitle || chat.name} (group)` : (chat.formattedTitle || chat.name || chat.id.user)
+                            (chat.id?._serialized ?? '').endsWith('@g.us') ? `${chat.formattedTitle || chat.name} (group)` : (chat.formattedTitle || chat.name || chat.id.user)
                         );
                     });
                     await message.reply(names.length > 0 ? `Available channels:\n${names.join('\n')}` : 'No channels found.');
@@ -312,12 +312,13 @@ export function createDeviceBot(device: DeviceConfig): any {
                 }
             } else if (request.toLowerCase() === 'list groups') {
                 try {
+                    // The raw store chat has no isGroup flag (and groupMetadata can be unloaded), so detect groups by their JID suffix: group ids always end in '@g.us'.
                     // Same direct chat-store read as "list channels" (see above for why
                     // not client.getChats()), filtered to group chats.
                     const names: string[] = await client.pupPage!.evaluate(() => {
                         // @ts-ignore - whatsapp-web.js's injected webpack loader, untyped
                         return window.require('WAWebCollections').Chat.getModelsArray()
-                            .filter((chat: any) => chat.isGroup)
+                            .filter((chat: any) => (chat.id?._serialized ?? '').endsWith('@g.us'))
                             .map((chat: any) => chat.formattedTitle || chat.name || chat.id.user);
                     });
                     await message.reply(names.length > 0 ? `Available groups:\n${names.join('\n')}` : 'No groups found.');
@@ -332,7 +333,7 @@ export function createDeviceBot(device: DeviceConfig): any {
                 } else {
                     try {
                         const result: { status: 'ok' | 'not-found' | 'ambiguous' | 'not-group'; members?: { name?: string; phone: string; isAdmin: boolean }[] } =
-                            await client.pupPage!.evaluate((wanted: string) => {
+                            await client.pupPage!.evaluate(async (wanted: string) => {
                                 // @ts-ignore - whatsapp-web.js's injected webpack loader, untyped
                                 const collections = window.require('WAWebCollections');
                                 const matches = collections.Chat.getModelsArray().filter((chat: any) =>
@@ -341,15 +342,25 @@ export function createDeviceBot(device: DeviceConfig): any {
                                 if (matches.length === 0) return { status: 'not-found' };
                                 if (matches.length > 1) return { status: 'ambiguous' };
                                 const chat = matches[0];
-                                if (!chat.isGroup) return { status: 'not-group' };
-                                const participants = chat.groupMetadata?.participants?.getModelsArray?.() ?? [];
+                                if (!(chat.id?._serialized ?? '').endsWith('@g.us')) return { status: 'not-group' };
+                                // groupMetadata may not be loaded yet for a chat that hasn't been opened.
+                                let metadata = chat.groupMetadata;
+                                if (!metadata?.participants?.getModelsArray) {
+                                    const gm = collections.GroupMetadata || collections.WAWebGroupMetadataCollection;
+                                    await gm.update(chat.id);
+                                    metadata = chat.groupMetadata ?? (await gm.find(chat.id));
+                                }
+                                const participants = metadata?.participants?.getModelsArray?.() ?? [];
                                 return {
                                     status: 'ok',
                                     members: participants.map((p: any) => {
-                                        const contact = collections.Contact.get(p.id);
+                                        // Participants may be LIDs; map to the phone-number id like whatsapp-web.js's getChatModel does.
+                                        let wid = p.id;
+                                        try { wid = window.require('WAWebLidMigrationUtils').toPn(p.id) ?? p.id; } catch { /* keep as is */ }
+                                        const contact = collections.Contact.get(wid) || collections.Contact.get(p.id);
                                         return {
                                             name: contact?.name || contact?.pushname || undefined,
-                                            phone: p.id.user,
+                                            phone: wid.user,
                                             isAdmin: !!(p.isAdmin || p.isSuperAdmin),
                                         };
                                     }),
