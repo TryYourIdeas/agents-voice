@@ -115,3 +115,7 @@ they take different shapes between the two agents).
 ## 2026-11-05 — `@ai list groups` and `@ai save <channel> members`
 
 New local WhatsApp commands (no agent call). `list groups` shows group chats only; `save <channel> members` writes a group's member list to `devices/<device>/channels/<channel-name>/members.md`. Helpers in `whatsap/lib/channel-members.ts` (vitest-covered); handlers in `whatsap/bot.ts`, verified by hand against a live client.
+
+## 2026-11-08 — Voice replies no longer fall back to text for long answers
+
+`lfm3-audio` rejects `/tts` text over 1500 chars (413), so any long agent reply was sent as text instead of a voice note. `whatsap/lib/voice-reply.ts` now splits the text at sentence boundaries (`TTS_CHUNK_CHARS`), synthesizes each piece and joins them with ffmpeg; replies over `TTS_MAX_TOTAL_CHARS` still fall back to text.
