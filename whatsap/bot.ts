@@ -269,7 +269,6 @@ export function createDeviceBot(device: DeviceConfig): any {
                     '!ping — health check, replies pong\n' +
                     '@ai help — show this list\n' +
                     '@ai list groups — list only the chats that are groups\n' +
-                    '@ai save <channel> members — save a group\'s member list to devices/<device>/channels/<channel>/members.md\n' +
                     '@ai list agents — list available named agents (./agents/*)\n' +
                     '@ai @agent <agent name> [message] — talk to a named agent\n' +
                     '@ai clear session — start fresh, forgetting this chat\'s conversation with every agent\n' +
