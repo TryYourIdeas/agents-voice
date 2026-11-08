@@ -119,3 +119,7 @@ New local WhatsApp commands (no agent call). `list groups` shows group chats onl
 ## 2026-11-08 — Voice replies no longer fall back to text for long answers
 
 `lfm3-audio` rejects `/tts` text over 1500 chars (413), so any long agent reply was sent as text instead of a voice note. `whatsap/lib/voice-reply.ts` now splits the text at sentence boundaries (`TTS_CHUNK_CHARS`), synthesizes each piece and joins them with ffmpeg; replies over `TTS_MAX_TOTAL_CHARS` still fall back to text.
+
+## 2026-11-08 — Kokoro-82M TTS stack
+
+New `kokoro-tts/` service (FastAPI, `hexgrad/Kokoro-82M` v1.0) exposing the same `/tts` contract as `lfm3-audio`, and `whatsap-lfm3-stt-tts-vision-kokoro-docker-compose.yml` (a copy of the stt-tts-vision stack with `TTS_URL` pointed at `kokoro-tts`; `lfm3-audio` remains for STT). Breeze TTS 2 and Step-Audio-EditX variants were deferred.
