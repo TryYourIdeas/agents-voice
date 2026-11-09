@@ -119,3 +119,7 @@ New local WhatsApp commands (no agent call). `list groups` shows group chats onl
 ## 2026-11-08 — Voice replies no longer fall back to text for long answers
 
 `lfm3-audio` rejects `/tts` text over 1500 chars (413), so any long agent reply was sent as text instead of a voice note. `whatsap/lib/voice-reply.ts` now splits the text at sentence boundaries (`TTS_CHUNK_CHARS`), synthesizes each piece and joins them with ffmpeg; replies over `TTS_MAX_TOTAL_CHARS` still fall back to text.
+
+## 2026-11-08 — my_read_file no longer overflows the model context
+
+The agent read `logs.txt` (~25 MB) whole while looking for text to summarise, producing a ~10M-token request that llama-server rejected (`exceeds the available context size`), so the user got "Sorry, something went wrong". `my_read_file` now returns at most `READ_FILE_MAX_BYTES` (default 20000) per call, with a notice and an optional `offset` to page on (`whatsap/lib/read-file-slice.ts`).
