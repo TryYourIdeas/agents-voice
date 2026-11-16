@@ -15,6 +15,8 @@ import { sendAgentResponse } from './lib/send-agent-response.ts'
 import { isBotSend } from './lib/own-messages.ts'
 import { quotedMessageText, withQuotedText } from './lib/quoted-text.ts'
 import { ownerOfQuoted, recordMessageOwner, shortIdOf } from './lib/message-owners.ts'
+import { parseConfirmation, getPendingMail, clearPendingMail, pendingKey } from './lib/pending-mail.ts'
+import { deliverEmail } from './lib/yahoo-mail.ts'
 import { archiveTask, tasksDir } from './lib/tasks.ts'
 import { parseSaveMembersCommand, saveChannelMembers } from './lib/channel-members.ts'
 import { setWhatsAppClient, tryGetWhatsAppClient } from './lib/whatsapp-client.ts'
@@ -220,6 +222,32 @@ export function createDeviceBot(device: DeviceConfig): any {
         // send target / thread id below, instead of raw message.from.
         const chatId = message.fromMe ? message.to : message.from;
 
+        // Outgoing-email confirmation gate. A draft queued by the mail agent
+        // (lib/pending-mail.ts) is sent only when the human answers "yes" here;
+        // matched in code, so email content can never confirm its own send.
+        // Skipped for the bot's own echoed messages.
+        if (!message.hasMedia && !(message.fromMe && isBotSend(chatId, messageIdOf(message)))) {
+            const decision = parseConfirmation(message.body ?? '');
+            const key = pendingKey(deviceName, chatId);
+            const draft = decision ? getPendingMail(key) : undefined;
+            if (decision && draft) {
+                clearPendingMail(key);
+                try {
+                    if (decision === 'no') {
+                        await message.reply('Draft discarded. Nothing was sent.');
+                    } else {
+                        const r = await deliverEmail(draft);
+                        console.log(`[${deviceName}] [mail] sent to=${draft.to} subject=${JSON.stringify(draft.subject)} id=${r.messageId} savedToSent=${r.savedToSent}`);
+                        await message.reply(`✅ Email sent to ${draft.to}.` + (r.savedToSent ? '' : ` (Could not save a copy to the Sent folder: ${r.sentFolderError})`));
+                    }
+                } catch (err: any) {
+                    console.error(`[${deviceName}] [mail] send failed:`, err);
+                    await message.reply(`❌ The email was not sent: ${err?.message ?? err}`);
+                }
+                return;
+            }
+        }
+
         if (message.body === '!ping') {
             // send back "pong" to the chat the message was sent in
             client.sendMessage(chatId, 'pong');
@@ -273,6 +301,7 @@ export function createDeviceBot(device: DeviceConfig): any {
                     '@ai @agent <agent name> [message] — talk to a named agent\n' +
                     '@ai clear session — start fresh, forgetting this chat\'s conversation with every agent\n' +
                     '@ai schedule <describe task and timing> — create a scheduled task (one-off or recurring)\n' +
+                    '@ai mail <request> — read new Yahoo emails, or draft/reply to one (sent only after you answer yes)\n' +
                     '@ai list tasks — list active scheduled tasks\n' +
                     '@ai cancel task <name> — cancel a scheduled task\n' +
                     '@ai <message> — talk to the default agent\n' +
@@ -406,6 +435,20 @@ export function createDeviceBot(device: DeviceConfig): any {
                     } catch (err) {
                         console.error(`[${deviceName}] [debug] cancel task '${taskName}' failed:`, err);
                         await message.reply(`Could not cancel task '${taskName}': ${(err as any)?.message || 'not found'}`);
+                    }
+                }
+            } else if (/^mail\b/i.test(request)) {
+                const mailText = request.replace(/^mail\s*/i, '').trim();
+                if (!mailText) {
+                    await message.reply('Usage: @ai mail <e.g. "check my new email", "reply to the one from Bob saying I agree">');
+                } else {
+                    try {
+                        const response = await callNamedAgent(deviceName, 'mail', mailText, chatId);
+                        console.log(`[${deviceName}] [debug] mail agent response:`, response);
+                        await sendAgentResponse(client, chatId, response, { onSent: recordOwner('mail') });
+                    } catch (err) {
+                        console.error(`[${deviceName}] [debug] mail command failed:`, err);
+                        await message.reply('Sorry, something went wrong with the mail request.');
                     }
                 }
             } else if (/^schedule\b/i.test(request)) {

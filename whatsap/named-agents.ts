@@ -6,6 +6,7 @@ import { z } from "zod";
 import { HumanMessage, SystemMessage } from "@langchain/core/messages";
 
 import { model, visionModel, sharedTools, sharedCheckpointer } from "./shared.ts";
+import { yahooGetNewEmailsTool, yahooDraftEmailTool } from "./tools/yahoo-mail.tool.ts";
 import { createVisionRoutingMiddleware } from "./lib/vision-routing.ts";
 import { datetimeMiddleware } from "./middleware/datetime-middleware.ts";
 import { createMemoryMiddleware } from "./middleware/memory-middleware.ts";
@@ -103,6 +104,11 @@ const listAvailableAgentsTool = tool(
     }
 );
 
+// Tools only named agents may use (never the default agent): the Yahoo mail
+// tools are reachable only through the `mail` agent, which the default agent
+// can still delegate to.
+const namedOnlyTools = [yahooGetNewEmailsTool, yahooDraftEmailTool];
+
 // Keyed by `${deviceName}:${agentName}` — one instance per device per agent.
 const namedAgents = new Map<string, ReturnType<typeof createAgent>>();
 
@@ -124,7 +130,7 @@ function getNamedAgent(deviceName: string, agentName: string): ReturnType<typeof
     // (see agent.md's frontmatter); omitted means no restriction, matching
     // every named agent's behavior before this field existed.
     const tools = header.allowedTools
-        ? [...sharedTools, listAvailableAgentsTool].filter((t) => header.allowedTools!.includes(t.name))
+        ? [...sharedTools, listAvailableAgentsTool, ...namedOnlyTools].filter((t) => header.allowedTools!.includes(t.name))
         : sharedTools;
 
     // Layers this agent's own skills (agents/<name>/skills/*/SKILL.md, if

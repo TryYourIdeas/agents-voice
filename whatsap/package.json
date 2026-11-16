@@ -21,14 +21,19 @@
     "cron-parser": "^5.10.0",
     "deepagents": "^1.10.2",
     "dotenv": "^17.4.2",
+    "imapflow": "^2.12.1",
     "langchain": "^1.4.0",
     "langchain-agent-kit": "file:../lib/langchain-agent-kit",
+    "mailparser": "^3.14.5",
+    "nodemailer": "^10.6.0",
     "qrcode": "^1.5.4",
     "qrcode-terminal": "^0.12.0",
     "whatsapp-web.js": "github:jlabrada/whatsapp-web.js#064a3d5a5a3dce1281a6a12740b5a7051339d154",
     "zod": "^4.3.6"
   },
   "devDependencies": {
+    "@types/mailparser": "^3.9.0",
+    "@types/nodemailer": "^8.0.2",
     "@types/qrcode-terminal": "^0.12.2",
     "vitest": "^5.0.0"
   }
