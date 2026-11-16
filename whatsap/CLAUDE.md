@@ -59,6 +59,8 @@ the full design. Reachable via `@ai schedule <text>`, `@ai list tasks`,
 `@ai cancel task <name>`, or natural chat delegation through
 `middleware/agent-delegation-middleware.ts`.
 
+**Yahoo mail (`agents/mail/`, `lib/yahoo-mail.ts`, `lib/pending-mail.ts`, `tools/yahoo-mail.tool.ts`):** a `mail` named agent reads unread Yahoo mail (IMAP) and queues drafts/replies; the two tools are named-agent-only (`namedOnlyTools` in `named-agents.ts`). The agent cannot send: `bot.ts` sends a queued draft (SMTP + copy to Sent) only when the human replies `yes` in the chat. Needs `YAHOO_EMAIL`/`YAHOO_APP_PASSWORD`. Reachable via `@ai mail <text>` or delegation. See `docs/yahoo-mail.md`.
+
 **`session/`** holds `whatsapp-web.js` `LocalAuth` session state (authenticated WhatsApp Web credentials) — treat as sensitive, do not print or transmit its contents.
 
 **`logs.txt` / `logs.01.txt` / `logs.02.txt`** are append-only dumps of every raw WhatsApp event (via `logToFile`), including message bodies and sender metadata — treat as containing user data.
