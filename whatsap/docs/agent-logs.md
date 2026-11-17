@@ -37,3 +37,12 @@ SELECT t.agent, sum(json_extract(e.data,'$.usage.input_tokens')) in_tok, sum(jso
 FROM events e JOIN turns t ON t.id=e.turn_id WHERE e.kind='model' GROUP BY t.agent;
 ```
 Open it with `sqlite3 logs/agent-logs.db` (WAL mode: reading while the bot runs is safe).
+
+## Viewer (UI `/logs`)
+The Nuxt app in `ui/` has a read-only viewer at `http://localhost:3000/logs`: summary cards (turns, errors, tools),
+filters (text, agent, status, source, include sub-agent turns), a paginated turn list, and a detail view with every
+model step, tool call/result and nested sub-agent turn. API: `GET /api/logs/turns`, `/api/logs/turns/:id`,
+`/api/logs/stats` (fixed queries only; no SQL endpoint). The DB path is `NUXT_AGENT_LOGS_DB` / `AGENT_LOGS_DB`
+(default `../logs/agent-logs.db`, relative to `ui/`; in `docker-compose.yml` it is `/data/logs/agent-logs.db`).
+Local run: `cd ui && npm run dev`. **The UI has no authentication**: anyone who can reach port 3000 can read the
+logged chats and emails, so do not expose it beyond your machine/network.
