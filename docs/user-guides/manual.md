@@ -18,11 +18,11 @@ This builds and starts three services by default (`stt` — the Whisper engine �
 
 | Service | URL | Purpose |
 |---|---|---|
-| `ui` | http://localhost:3000 | The web app described below |
+| `ui` | http://localhost:3000 | The web app: a home page linking to `/tts` (described below), `/connect` and `/logs` |
 | `tts` | http://localhost:8000 | Text-to-speech backend (Qwen3-TTS) |
 | `qwen-stt` | http://localhost:8002 | Speech-to-text backend (Qwen3-ASR) |
 
-Once the containers are up, open **http://localhost:3000** in your browser and continue with
+Once the containers are up, open **http://localhost:3000/tts** in your browser (the home page at `/` links to it, to `/connect` and to `/logs`) and continue with
 [§1 below](#1-synthesizing-speech). In the transcribe form's Engine selector, only "Qwen" will work
 out of the box — see below for enabling "Whisper" too.
 

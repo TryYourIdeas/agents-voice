@@ -104,7 +104,7 @@ Starts `tts`, `qwen-stt`, `llama-server`, and `ui`. `stt` (Whisper) is behind th
 Compose profile and not started by default — see `docs/user-guides/config.md`'s GPU memory budget
 section for why, and how to switch to it.
 
-Once up: UI at http://localhost:3000, TTS API at :8000, Qwen STT at :8002, Whisper STT (if
+Once up: UI at http://localhost:3000 (TTS/STT at /tts), TTS API at :8000, Qwen STT at :8002, Whisper STT (if
 started) at :8001, `llama-server` at :5050.
 
 ## 4. Optional: the WhatsApp bot stack

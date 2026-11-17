@@ -120,7 +120,7 @@ services:
   # One web app for the whatsap stack (same Nuxt app as the root `ui`):
   #   /connect  add WhatsApp devices, scan QR codes, reconnect (was `devices-ui`)
   #   /logs     read-only viewer for the agent log database
-  # The TTS/STT page at / needs backends this stack does not run.
+  # The TTS/STT page (/tts) needs backends this stack does not run.
   ui:
     build: ./ui
     image: agents-voice-ui:latest
