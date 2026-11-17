@@ -10,6 +10,8 @@ import { yahooGetNewEmailsTool, yahooDraftEmailTool } from "./tools/yahoo-mail.t
 import { createVisionRoutingMiddleware } from "./lib/vision-routing.ts";
 import { datetimeMiddleware } from "./middleware/datetime-middleware.ts";
 import { createMemoryMiddleware } from "./middleware/memory-middleware.ts";
+import { agentLogsMiddleware } from "./middleware/agent-logs-middleware.ts";
+import { loggedTurn } from "./lib/agent-logs.ts";
 import { extractText, agentRecursionLimit, isRecursionLimitError, RECURSION_LIMIT_REPLY } from "./util.ts";
 import {
     createSkillMiddleware,
@@ -149,6 +151,7 @@ function getNamedAgent(deviceName: string, agentName: string): ReturnType<typeof
             visionRoutingMiddleware,
             logModelCallMiddleware,
             messageTypeTraceMiddleware,
+            agentLogsMiddleware,
         ],
     });
 
@@ -156,7 +159,21 @@ function getNamedAgent(deviceName: string, agentName: string): ReturnType<typeof
     return namedAgent;
 }
 
-export async function callNamedAgent(
+export function callNamedAgent(
+    deviceName: string,
+    agentName: string,
+    message: string,
+    localThreadId: string,
+    opts?: { recursionLimit?: number }
+): Promise<string> {
+    return loggedTurn(
+        { device: deviceName, chatId: localThreadId, threadId: `device:${deviceName}:agent:${agentName}:${localThreadId}`, agent: agentName, model: process.env.ANTHROPIC_MODEL, userMessage: message },
+        () => runNamedAgent(deviceName, agentName, message, localThreadId, opts),
+        RECURSION_LIMIT_REPLY
+    );
+}
+
+async function runNamedAgent(
     deviceName: string,
     agentName: string,
     message: string,

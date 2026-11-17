@@ -7,3 +7,6 @@ model-qwen3.5
 node_modules
 .env.whatsap-llama
 references/
+
+# Agent activity log (SQLite) — contains private message content
+logs/

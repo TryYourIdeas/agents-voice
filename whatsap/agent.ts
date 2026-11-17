@@ -8,6 +8,8 @@ import { createVisionRoutingMiddleware } from "./lib/vision-routing.ts";
 import { datetimeMiddleware } from "./middleware/datetime-middleware.ts";
 import { createMemoryMiddleware } from "./middleware/memory-middleware.ts";
 import { agentDelegationMiddleware } from "./middleware/agent-delegation-middleware.ts";
+import { agentLogsMiddleware } from "./middleware/agent-logs-middleware.ts";
+import { loggedTurn } from "./lib/agent-logs.ts";
 import { extractText, agentRecursionLimit, isRecursionLimitError, RECURSION_LIMIT_REPLY } from "./util.ts";
 import { createSkillMiddleware, createLogModelCallMiddleware } from "langchain-agent-kit";
 
@@ -47,13 +49,22 @@ function getDefaultAgent(deviceName: string): ReturnType<typeof createAgent> {
             visionRoutingMiddleware,
             logModelCallMiddleware,
             messageTypeTraceMiddleware,
+            agentLogsMiddleware,
         ],
     });
     defaultAgents.set(deviceName, agent);
     return agent;
 }
 
-export async function callAgent(deviceName: string, content: MessageContent, localThreadId: string, opts?: { recursionLimit?: number }): Promise<string> {
+export function callAgent(deviceName: string, content: MessageContent, localThreadId: string, opts?: { recursionLimit?: number }): Promise<string> {
+    return loggedTurn(
+        { device: deviceName, chatId: localThreadId, threadId: `device:${deviceName}:${localThreadId}`, agent: "default", model: process.env.ANTHROPIC_MODEL, userMessage: content },
+        () => runDefaultAgent(deviceName, content, localThreadId, opts),
+        RECURSION_LIMIT_REPLY
+    );
+}
+
+async function runDefaultAgent(deviceName: string, content: MessageContent, localThreadId: string, opts?: { recursionLimit?: number }): Promise<string> {
     const agent = getDefaultAgent(deviceName);
     let result;
     try {

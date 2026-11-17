@@ -1,0 +1,98 @@
+import { describe, it, expect, beforeEach, vi } from "vitest";
+import { createAgent, tool, fakeModel } from "langchain";
+import { AIMessage, HumanMessage } from "@langchain/core/messages";
+import { z } from "zod";
+import { openLogsDb, resetLogsDb, loggedTurn, logEvent, contentToText, cap, currentTurnId } from "./agent-logs.ts";
+import { agentLogsMiddleware } from "../middleware/agent-logs-middleware.ts";
+
+function db() {
+    return openLogsDb(":memory:")!;
+}
+const rows = (sql: string, ...p: any[]) => db().prepare(sql).all(...p) as any[];
+
+beforeEach(() => {
+    resetLogsDb();
+    db();
+});
+
+describe("contentToText / cap", () => {
+    it("flattens blocks and never stores image data", () => {
+        expect(contentToText([{ type: "text", text: "hi" }, { type: "image", mimeType: "image/png", data: "AAAA" }, { type: "thinking", thinking: "x" }])).toBe("hi\n[image image/png]");
+        expect(contentToText("plain")).toBe("plain");
+    });
+    it("truncates and flags", () => {
+        expect(cap("abcdef", 3)).toEqual({ text: "abc", truncated: true });
+        expect(cap("ab", 3)).toEqual({ text: "ab", truncated: false });
+    });
+});
+
+describe("loggedTurn", () => {
+    it("records user message, final response and duration", async () => {
+        const out = await loggedTurn({ device: "primary", chatId: "c1", agent: "default", userMessage: "hello" }, async () => "world");
+        expect(out).toBe("world");
+        const [t] = rows("SELECT * FROM turns");
+        expect(t).toMatchObject({ device: "primary", chat_id: "c1", agent: "default", source: "chat", user_message: "hello", final_response: "world", status: "ok" });
+        expect(t.duration_ms).toBeGreaterThanOrEqual(0);
+    });
+    it("records errors and rethrows", async () => {
+        await expect(loggedTurn({ agent: "a", userMessage: "x" }, async () => { throw new Error("boom"); })).rejects.toThrow("boom");
+        expect(rows("SELECT status, error FROM turns")[0]).toMatchObject({ status: "error" });
+        expect(rows("SELECT error FROM turns")[0].error).toContain("boom");
+    });
+    it("marks recursion-limit replies", async () => {
+        await loggedTurn({ agent: "a", userMessage: "x" }, async () => "LIMIT", "LIMIT");
+        expect(rows("SELECT status FROM turns")[0].status).toBe("recursion_limit");
+    });
+    it("links nested runs as delegated sub-agent turns and tags scheduled runs", async () => {
+        await loggedTurn({ agent: "default", userMessage: "q" }, async () => {
+            await loggedTurn({ agent: "mail", userMessage: "task" }, async () => "sub");
+            return "done";
+        });
+        await loggedTurn({ agent: "default", chatId: "scheduled:t:1", userMessage: "s" }, async () => "ok");
+        const t = rows("SELECT id, parent_turn_id, agent, source FROM turns ORDER BY id");
+        expect(t[1]).toMatchObject({ agent: "mail", source: "delegated", parent_turn_id: t[0].id });
+        expect(t[2].source).toBe("scheduled");
+    });
+    it("does not break the agent when logging is unavailable", async () => {
+        resetLogsDb();
+        vi.stubEnv("AGENT_LOGS_ENABLED", "false");
+        expect(await loggedTurn({ agent: "a", userMessage: "x" }, async () => "fine")).toBe("fine");
+        vi.unstubAllEnvs();
+    });
+});
+
+describe("events", () => {
+    it("attaches to the active turn", async () => {
+        await loggedTurn({ agent: "a", userMessage: "x" }, async () => {
+            expect(currentTurnId()).toBeDefined();
+            logEvent({ kind: "tool", name: "t", input: { a: 1 }, content: "r" });
+            return "y";
+        });
+        logEvent({ kind: "tool", name: "orphan" });
+        const e = rows("SELECT * FROM events ORDER BY id");
+        expect(e[0]).toMatchObject({ name: "t", input: '{"a":1}', content: "r", status: "ok" });
+        expect(e[0].turn_id).not.toBeNull();
+        expect(e[1].turn_id).toBeNull();
+    });
+});
+
+describe("agentLogsMiddleware with a real agent loop", () => {
+    it("captures model responses and tool results inside the turn", async () => {
+        const echo = tool(async ({ text }: { text: string }) => `echo:${text}`, { name: "echo", description: "echo", schema: z.object({ text: z.string() }) });
+        const model = fakeModel()
+            .respondWithTools([{ id: "call1", name: "echo", args: { text: "hi" } }])
+            .respond(new AIMessage("all done"));
+        const agent = createAgent({ model: model as any, tools: [echo], middleware: [agentLogsMiddleware] });
+        const out = await loggedTurn({ agent: "default", userMessage: "go" }, async () => {
+            const r = await agent.invoke({ messages: [new HumanMessage("go")] });
+            return String(r.messages[r.messages.length - 1].content);
+        });
+        expect(out).toBe("all done");
+        const turn = rows("SELECT id FROM turns")[0];
+        const ev = rows("SELECT * FROM events WHERE turn_id = ? ORDER BY id", turn.id);
+        expect(ev.map((e) => e.kind)).toEqual(["model", "tool", "model"]);
+        expect(JSON.parse(ev[0].data).tool_calls[0]).toMatchObject({ name: "echo", args: { text: "hi" } });
+        expect(ev[1]).toMatchObject({ name: "echo", tool_call_id: "call1", content: "echo:hi", status: "ok" });
+        expect(ev[2].content).toBe("all done");
+    });
+});
