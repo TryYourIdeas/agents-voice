@@ -1,5 +1,11 @@
 # Changes
 
+## 2026-11-17 — `ui` home page; TTS/STT moved to `/tts`
+
+- `/` is now a landing page linking to the three tools: `/tts` (the TTS/STT screen, moved from `/`),
+  `/connect` (device connect UI) and `/logs` (agent log viewer). Bookmarks to `http://localhost:3000`
+  for the TTS screen need to become `http://localhost:3000/tts`. The `/api/*` routes are unchanged.
+
 ## 2026-11-17 — Device connect UI merged into the `ui` app (`/connect`), alongside `/logs`
 
 - The standalone `whatsap/devices-ui` app is gone. Its pages and API routes now live in `ui/`: `/connect`
