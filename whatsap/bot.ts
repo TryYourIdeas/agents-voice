@@ -135,7 +135,7 @@ export function createDeviceBot(device: DeviceConfig): any {
 
     client.on('qr', (qr) => {
         // Terminal QR output stays as a fallback alongside the web UI
-        // (devices-ui) — harmless to keep printing, and useful if the UI
+        // (ui /connect page) — harmless to keep printing, and useful if the UI
         // container isn't up for some reason. Prefixed with the device
         // name so multiple devices' output stays attributable.
         console.log(`[${deviceName}] scan this QR code:`);
@@ -545,7 +545,7 @@ export function createDeviceBot(device: DeviceConfig): any {
 
 // A failed initialize() (typically a Chromium launch timeout) used to leave
 // the device dead until the container restarted. Retry a few times with
-// backoff; a user-triggered reconnect (devices-ui) resets the counter.
+// backoff; a user-triggered reconnect (ui /connect page) resets the counter.
 const MAX_INIT_RETRIES = 3;
 const INIT_RETRY_DELAY_MS = 15000;
 const initRetries = new Map<string, number>();
@@ -553,7 +553,7 @@ const initRetries = new Map<string, number>();
 function scheduleInitRetry(device: DeviceConfig): void {
     const attempt = (initRetries.get(device.name) ?? 0) + 1;
     if (attempt > MAX_INIT_RETRIES) {
-        console.error(`[${device.name}] giving up after ${MAX_INIT_RETRIES} initialize() retries; use Reconnect in devices-ui`);
+        console.error(`[${device.name}] giving up after ${MAX_INIT_RETRIES} initialize() retries; use Reconnect on the ui's /connect page`);
         return;
     }
     initRetries.set(device.name, attempt);

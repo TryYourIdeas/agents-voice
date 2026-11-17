@@ -1,5 +1,14 @@
 # Changes
 
+## 2026-11-17 — Device connect UI merged into the `ui` app (`/connect`), alongside `/logs`
+
+- The standalone `whatsap/devices-ui` app is gone. Its pages and API routes now live in `ui/`: `/connect`
+  (device list, Add Device, QR pairing, Reconnect) and `/api/devices*`, `/api/new-device`, next to the
+  agent log viewer at `/logs`. Device names are now validated on the proxied routes and the new-device
+  label is forced onto one line.
+- The `whatsap-*-compose.yml` files run one `ui` service on port 3000 (was `devices-ui` on 3003);
+  `start.sh` starts `whatsap` and `ui`. The `whatsap-devices-ui` image is no longer used.
+
 ## 2026-10-31 — Date awareness and the AI-news search loop
 
 - `whatsap`: the daily "AI news" scheduled task looped on `web_search` until the recursion limit

@@ -2,7 +2,7 @@
 
 This is a walkthrough of using every user-facing part of this repo: the voice-AI web UI at
 `http://localhost:3000`, the `ai-extension` Chrome extension, and the WhatsApp bot (`whatsap`,
-plus its `devices-ui` device-management UI). For raw API usage against the backend services
+plus its `ui` device-management and log pages). For raw API usage against the backend services
 directly, see [`api.md`](./api.md). For environment/configuration options, see
 [`config.md`](./config.md).
 
@@ -164,7 +164,7 @@ device is linked.
 
 A "device" is one WhatsApp account/phone linked to the bot; you can link more than one at a time.
 
-1. Open **http://localhost:3003** (the `devices-ui` service).
+1. Open **http://localhost:3000/connect** (the `ui` service).
 2. The device list shows every linked device with its name, label, and status
    (`pending` / `connected` / `disconnected`).
 3. To add one: fill in **Name** (lowercase letters, numbers, dashes — used as the folder name

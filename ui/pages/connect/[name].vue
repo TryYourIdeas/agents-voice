@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { ref, onMounted, onUnmounted } from 'vue'
+import { useRoute } from 'vue-router'
 interface Device {
     name: string
     label: string
@@ -56,19 +58,19 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <main style="max-width: 480px; margin: 2rem auto; font-family: system-ui, sans-serif; text-align: center;">
-    <p style="text-align: left"><NuxtLink to="/devices">&larr; All devices</NuxtLink></p>
+  <main style="max-width: 480px; margin: 2rem auto; padding: 0 1rem; color: #eaeaea; text-align: center;">
+    <p style="text-align: left"><NuxtLink to="/connect">&larr; All devices</NuxtLink></p>
     <h1>{{ device?.label || deviceName }}</h1>
 
     <p v-if="!device">Setting up...</p>
     <p v-else-if="device.status === 'connected'">✅ Connected</p>
     <div v-else-if="device.status === 'pending'">
       <p>Scan this QR code with WhatsApp:</p>
-      <img :src="`/api/devices/${deviceName}/qr.png?t=${qrCacheBuster}`" alt="QR code" width="300" height="300" />
+      <img style="background: #fff; padding: 8px; border-radius: 8px" :src="`/api/devices/${deviceName}/qr.png?t=${qrCacheBuster}`" alt="QR code" width="300" height="300" />
       <p>
         <button type="button" @click="refreshQr">Refresh QR code</button>
       </p>
-      <p style="color: #666; font-size: 0.9em">
+      <p style="color: #9a9ab0; font-size: 0.9em">
         WhatsApp QR codes expire after about a minute — click refresh if scanning fails.
       </p>
     </div>
@@ -79,7 +81,7 @@ onUnmounted(() => {
           {{ reconnecting ? 'Reconnecting…' : 'Reconnect' }}
         </button>
       </p>
-      <p v-if="reconnectError" style="color: red">{{ reconnectError }}</p>
+      <p v-if="reconnectError" style="color: #ff9a9a" role="alert">{{ reconnectError }}</p>
     </div>
     <p v-else>Status: {{ device.status }}</p>
   </main>

@@ -1,19 +1,19 @@
 // internal-api.ts
 //
-// Small JSON+image API for the Nuxt UI (devices-ui) to consume — see
+// Small JSON+image API for the Nuxt UI (ui (/connect)) to consume — see
 // docs/superpowers/specs/2026-09-08-multi-device-support-design.md's
 // "Internal API" section. Devices themselves are still only ever *created*
 // by writing to new-devices/ (see device-onboarding.ts), whether by hand or
-// by devices-ui's Nitro server writing directly to the shared volume — never
+// by ui (/connect)'s Nitro server writing directly to the shared volume — never
 // through a call into this API. The one deliberate exception is
 // POST /api/devices/:name/reconnect: a device's *live* connection (not its
-// on-disk device.md) can be told to reconnect, e.g. from devices-ui's
+// on-disk device.md) can be told to reconnect, e.g. from ui (/connect)'s
 // "Reconnect" button on a disconnected device.
 //
-// Bound to 0.0.0.0 so the devices-ui container can reach it by Docker
+// Bound to 0.0.0.0 so the ui (/connect) container can reach it by Docker
 // service-name DNS, but with no host port mapping in docker-compose — the
 // raw device/QR data is never directly reachable from outside the Docker
-// network, only through whatever devices-ui chooses to expose.
+// network, only through whatever ui (/connect) chooses to expose.
 
 import { createServer } from "node:http";
 import QRCode from "qrcode";

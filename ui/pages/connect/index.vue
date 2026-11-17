@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { ref } from 'vue'
 interface Device {
     name: string
     label: string
@@ -20,7 +21,7 @@ async function addDevice() {
             method: 'POST',
             body: { name: newName.value, label: newLabel.value },
         })
-        await navigateTo(`/devices/${created.name}`)
+        await navigateTo(`/connect/${created.name}`)
     } catch (err: any) {
         errorMessage.value = err?.data?.statusMessage || 'Failed to create device.'
     } finally {
@@ -30,11 +31,12 @@ async function addDevice() {
 </script>
 
 <template>
-  <main style="max-width: 480px; margin: 2rem auto; font-family: system-ui, sans-serif;">
-    <h1>WhatsApp Devices</h1>
+  <main style="max-width: 480px; margin: 2rem auto; padding: 0 1rem; color: #eaeaea;">
+    <p><NuxtLink to="/">← Home</NuxtLink> · <NuxtLink to="/logs">Agent logs</NuxtLink></p>
+    <h1>Connect WhatsApp devices</h1>
     <ul>
       <li v-for="device in devices" :key="device.name">
-        <NuxtLink :to="`/devices/${device.name}`">
+        <NuxtLink :to="`/connect/${device.name}`">
           {{ device.label }} ({{ device.name }}) — {{ device.status }}
         </NuxtLink>
       </li>
@@ -57,6 +59,6 @@ async function addDevice() {
       </div>
       <button type="submit" :disabled="submitting">Add Device</button>
     </form>
-    <p v-if="errorMessage" style="color: red">{{ errorMessage }}</p>
+    <p v-if="errorMessage" style="color: #ff9a9a" role="alert">{{ errorMessage }}</p>
   </main>
 </template>

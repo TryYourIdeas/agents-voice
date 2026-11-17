@@ -62,7 +62,8 @@ onMounted(() => { loadStats(); loadTurns() })
   <div class="logs">
     <header class="bar">
       <h1>Agent logs</h1>
-      <NuxtLink to="/">← Back</NuxtLink>
+      <NuxtLink to="/">← Home</NuxtLink>
+      <NuxtLink to="/connect">Connect devices</NuxtLink>
       <button type="button" @click="loadStats(); loadTurns()">Refresh</button>
     </header>
 
