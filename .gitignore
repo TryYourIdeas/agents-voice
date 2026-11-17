@@ -9,4 +9,4 @@ node_modules
 references/
 
 # Agent activity log (SQLite) — contains private message content
-logs/
+/logs/
