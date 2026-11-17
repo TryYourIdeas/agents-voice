@@ -78,7 +78,7 @@ from the default `docker-compose.yml`.
 |---|---|---|---|---|
 | `whatsap` | — | — | No | The bot itself — no HTTP port, connects out to WhatsApp Web |
 | `ai-extension-server` | 4100 | 4100 | No | Backend for the `ai-extension` Chrome extension (see below) |
-| `devices-ui` | 3000 | 3003 | No | Web UI for adding WhatsApp devices and scanning QR codes |
+| `ui` (whatsap stacks) | 3000 | 3000 | No | Web UI: `/connect` adds WhatsApp devices and scans QR codes, `/logs` reviews the agent log database |
 | `llama-server` | 5050 | 5050 | Yes (GPU build) | Local OpenAI/Ollama-compatible inference, used as a free Anthropic-API stand-in |
 | `stt` | 8001 | 8001 | Yes | Whisper STT — transcribes voice notes sent to allow-listed chats |
 | `plantuml-renderer` | 3000 | 3001 | No | Renders PlantUML diagrams for the `system-design-coach` agent's `render_diagram` tool |
@@ -90,7 +90,7 @@ and `ai-extension` env var tables below for what each does). It's `.gitignore`-w
 secrets) and not committed; create it yourself before first run.
 
 **First run needs a way to scan each device's WhatsApp Web QR code** — either watch the foreground
-logs (QR printed via `qrcode-terminal`, prefixed with the device name) or use the `devices-ui` web UI
+logs (QR printed via `qrcode-terminal`, prefixed with the device name) or use the `ui` web UI's `/connect` page
 at `http://localhost:3003` (see [`manual.md`](./manual.md#managing-whatsapp-devices) for the full
 walkthrough):
 
@@ -132,14 +132,15 @@ docker compose -f docker-compose-whatsap.yml down
 | `PLANTUML_URL` | `http://localhost:3000` (`http://plantuml-renderer:3000` in Docker) | Backend for the `render_diagram` tool |
 | `SCHEDULER_POLL_INTERVAL_MS` | `60000` | How often the scheduler checks for due scheduled tasks |
 | `DEVICE_ONBOARDING_POLL_INTERVAL_MS` | `5000` | How often the onboarding poller checks `new-devices/` for pending device requests |
-| `INTERNAL_API_PORT` | `4001` | Port for `whatsap`'s internal API, used by `devices-ui` to list/create devices |
+| `INTERNAL_API_PORT` | `4001` | Port for `whatsap`'s internal API, used by the `ui` (`/connect`) to list/create devices |
 
-#### `devices-ui` env vars
+#### `ui` env vars for `/connect` and `/logs`
 
 | Env var (Docker / `NUXT_*`) | Env var (local `nuxt dev`) | Default | Purpose |
 |---|---|---|---|
 | `NUXT_WHATSAP_API_URL` | `WHATSAP_API_URL` | `http://localhost:4001` | Reaches `whatsap`'s internal API (Docker service DNS: `http://whatsap:4001`) |
-| `NUXT_NEW_DEVICES_DIR` | `NEW_DEVICES_DIR` | `/data/new-devices` | Shared drop directory with `whatsap`'s onboarding poller — see `whatsap/device-onboarding.ts` |
+| `NUXT_NEW_DEVICES_DIR` | `NEW_DEVICES_DIR` | `/data/new-devices` (Docker) / `../whatsap/new-devices` (local) | Shared drop directory with `whatsap`'s onboarding poller — see `whatsap/device-onboarding.ts` |
+| `NUXT_AGENT_LOGS_DB` | `AGENT_LOGS_DB` | `/data/logs/agent-logs.db` (Docker) / `../logs/agent-logs.db` (local) | Agent log SQLite database shown by `/logs` (opened read-only) |
 
 #### `plantuml-renderer` env vars
 
@@ -178,8 +179,8 @@ instead uses the CPU-only `llama-server/Dockerfile` (needs `llama/`).
   Holds every device's WhatsApp session (`<name>/session`), scheduled tasks (`<name>/tasks`), memory,
   and raw event log (`<name>/logs.txt`) — deleting a device's `session/` forces a QR re-scan; deleting
   the whole directory removes the device (and its scheduled tasks) entirely. Treat as sensitive.
-- **`./whatsap/new-devices`** — bind-mounted into both `whatsap` (`/app/new-devices`) and `devices-ui`
-  (`/data/new-devices`). A device request written here by `devices-ui`'s "Add Device" form is picked
+- **`./whatsap/new-devices`** — bind-mounted into both `whatsap` (`/app/new-devices`) and `ui`
+  (`/data/new-devices`). A device request written here by the `ui`'s "Add Device" form is picked
   up by `whatsap`'s onboarding poller and turned into a running bot without a restart — see
   `whatsap/device-onboarding.ts`. Normally empty in steady state (pending files are deleted once
   onboarded).

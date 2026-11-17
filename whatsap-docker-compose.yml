@@ -115,27 +115,29 @@ services:
       start_period: 10s
     restart: unless-stopped
 
-  devices-ui:
-    build: ./whatsap/devices-ui
-    image: whatsap-devices-ui:latest
+  # One web app for the whatsap stack (same Nuxt app as the root `ui`):
+  #   /connect  add WhatsApp devices, scan QR codes, reconnect (was `devices-ui`)
+  #   /logs     read-only viewer for the agent log database
+  # The TTS/STT page at / needs backends this stack does not run.
+  ui:
+    build: ./ui
+    image: agents-voice-ui:latest
     ports:
-      # Host port 3002 was already taken by an unrelated native process on
-      # this host (same class of conflict plantuml-renderer's own port hit
-      # previously) — internal container-to-container traffic is on the
-      # container's own port 3000 regardless, unaffected by this remap.
-      - "3003:3000"
+      - "3000:3000"
     environment:
-      # NUXT_-prefixed so Nuxt's runtime override mechanism actually applies
-      # to the *built* image (see devices-ui/nuxt.config.ts's comment) —
-      # reaches whatsap's internal API (internal-api.ts) by Docker
-      # service-name DNS, never exposed to the host directly.
+      # NUXT_-prefixed so Nuxt's runtime override applies to the *built* image
+      # (see ui/nuxt.config.ts). whatsap's internal API is reached by Docker
+      # service-name DNS and never exposed to the host.
       NUXT_WHATSAP_API_URL: http://whatsap:4001
       NUXT_NEW_DEVICES_DIR: /data/new-devices
+      NUXT_AGENT_LOGS_DB: /data/logs/agent-logs.db
     volumes:
-      # Shared with whatsap's own ./whatsap/new-devices mount — this is how
-      # the "Add Device" form creates a device without ever calling into
-      # whatsap's (read-only) API. See whatsap/device-onboarding.ts.
+      # Shared with whatsap's own ./whatsap/new-devices mount: the "Add Device"
+      # form creates a device by writing a file here (whatsap/device-onboarding.ts).
       - ./whatsap/new-devices:/data/new-devices
+      # Agent log database written by whatsap. Read-write because SQLite WAL
+      # readers need the -shm file; the app itself opens it read-only.
+      - ./logs:/data/logs
     depends_on:
       - whatsap
     restart: unless-stopped

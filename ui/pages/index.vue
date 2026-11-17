@@ -2,7 +2,7 @@
   <div class="page">
     <main class="card">
       <h1>Qwen3 TTS</h1>
-      <NuxtLink class="logs-link" to="/logs">Agent logs →</NuxtLink>
+      <span class="logs-link"><NuxtLink to="/connect">Connect devices</NuxtLink> · <NuxtLink to="/logs">Agent logs</NuxtLink></span>
       <p class="subtitle">Type something, pick a voice, hear it spoken.</p>
 
       <form @submit.prevent="synthesize">
@@ -527,6 +527,7 @@ button.secondary:hover:not(:disabled) { background: #34344a; }
   align-items: center;
 }
 .hint { margin: 0; color: #7a818d; font-size: 0.8rem; }
-.logs-link { float: right; color: #8ab4ff; font-size: 0.85rem; text-decoration: none; }
-.logs-link:hover { text-decoration: underline; }
+.logs-link { float: right; font-size: 0.85rem; }
+.logs-link a { color: #8ab4ff; text-decoration: none; }
+.logs-link a:hover { text-decoration: underline; }
 </style>

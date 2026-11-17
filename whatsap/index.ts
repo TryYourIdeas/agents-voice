@@ -48,7 +48,7 @@ function bootDevice(device: DeviceConfig): void {
 }
 
 // Called from internal-api.ts's POST /api/devices/:name/reconnect (e.g. the
-// devices-ui "Reconnect" button on a disconnected device). Updates the
+// ui /connect "Reconnect" button on a disconnected device). Updates the
 // existing DeviceHandle in place — scheduler.ts closes over this same
 // `activeDevices` array, so it picks up the new client on its very next
 // poll tick without any extra wiring, same as a newly onboarded device.

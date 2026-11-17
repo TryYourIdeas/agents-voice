@@ -90,7 +90,7 @@ agent backed by Anthropic's Messages API (or the local `llama-server`, see `conf
 
 - **Multi-device** — link more than one WhatsApp account/phone to the bot at once, each with its
   own independent session, conversation memory, and scheduled tasks. Add a device via the terminal
-  QR code or the [`devices-ui` web UI](#device-management-ui-devices-ui).
+  QR code or the [`ui` web UI's `/connect` page](#device-management-ui-connect).
 - **Chat commands** (send any of these, prefixed with `@ai`, to a chat the linked account can see):
   - `@ai help` — list available commands.
   - `@ai <message>` — talk to the default agent.
@@ -138,9 +138,9 @@ via the `send_audio` tool. Audio is only generated when asked. Needs `TTS_URL` (
   and the `get_current_datetime` tool returns exact values (optionally for another timezone). Recurring
   task runs are told which day they are for. Configure the zone with `AGENT_TIMEZONE`.
 
-## Device management UI (`devices-ui`)
+## Device management UI (`/connect`)
 
-A small Nuxt web UI (`http://localhost:3003`) for managing `whatsap`'s linked devices without
+The `/connect` page of the Nuxt `ui` app (`http://localhost:3000/connect`, same app as the `/logs` viewer) for managing `whatsap`'s linked devices without
 needing a terminal:
 
 - **List devices** — name, label, and live connection status (`pending` / `connected` /
