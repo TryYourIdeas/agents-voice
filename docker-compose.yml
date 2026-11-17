@@ -116,6 +116,12 @@ services:
       NUXT_TTS_URL: http://tts:8000
       NUXT_STT_URL: http://stt:8001
       NUXT_QWEN_STT_URL: http://qwen-stt:8002
+      # Agent log viewer (/logs page); opened read-only. See whatsap/docs/agent-logs.md.
+      NUXT_AGENT_LOGS_DB: /data/logs/agent-logs.db
+    volumes:
+      # Written by the whatsap bot. Mounted read-write because SQLite WAL readers
+      # need to touch the -shm file; the app itself opens the DB read-only.
+      - ./logs:/data/logs
     depends_on:
       - tts
       - qwen-stt
