@@ -43,7 +43,11 @@ services:
       # — a new device is created by writing new-devices/<name>.md here;
       # the running process picks it up without a restart.
       - ./whatsap/new-devices:/app/new-devices
+      # SQLite log of user messages, agent/sub-agent replies and tool results
+      # (whatsap/lib/agent-logs.ts), kept on the host for later analysis.
+      - ./logs:/data/logs
     environment:
+      AGENT_LOGS_DB: /data/logs/agent-logs.db
       # Small local models can loop on web_search; fail fast instead of 100 steps.
       AGENT_RECURSION_LIMIT: "60"
       AGENT_TIMEZONE: ${AGENT_TIMEZONE:-America/Sao_Paulo}

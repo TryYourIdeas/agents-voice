@@ -59,7 +59,11 @@ services:
       # — a new device is created by writing new-devices/<name>.md here;
       # the running process picks it up without a restart.
       - ./whatsap/new-devices:/app/new-devices
+      # SQLite log of user messages, agent/sub-agent replies and tool results
+      # (whatsap/lib/agent-logs.ts), kept on the host for later analysis.
+      - ./logs:/data/logs
     environment:
+      AGENT_LOGS_DB: /data/logs/agent-logs.db
       STT_URL: http://stt:8001
       PLANTUML_URL: http://plantuml-renderer:3000
       # Comma-separated chat display names (as shown by "@ai list channels")
