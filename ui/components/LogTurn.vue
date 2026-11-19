@@ -4,6 +4,7 @@
 const props = defineProps<{ turn: Record<string, any> }>()
 
 const pretty = (v: unknown) => (typeof v === 'string' ? v : JSON.stringify(v, null, 2))
+const fmt = (n: unknown) => (n == null ? '—' : Number(n).toLocaleString('en-US'))
 const toolCalls = (e: Record<string, any>) => (e.data && Array.isArray(e.data.tool_calls) ? e.data.tool_calls : [])
 </script>
 
@@ -13,6 +14,10 @@ const toolCalls = (e: Record<string, any>) => (e.data && Array.isArray(e.data.to
       <strong>#{{ props.turn.id }} · {{ props.turn.agent }}</strong>
       <span class="badge" :class="`st-${props.turn.status}`">{{ props.turn.status }}</span>
       <span class="muted">{{ props.turn.source }} · {{ props.turn.duration_ms ?? '?' }} ms · {{ props.turn.started_at }}</span>
+      <span v-if="props.turn.tokens" class="muted" data-testid="turn-tokens">
+        tokens in {{ fmt(props.turn.tokens.input_tokens) }} / out {{ fmt(props.turn.tokens.output_tokens) }}<template
+          v-if="props.turn.children?.length"> (with sub-agents: in {{ fmt(props.turn.tokens_total.input_tokens) }} / out {{ fmt(props.turn.tokens_total.output_tokens) }})</template>
+      </span>
     </header>
 
     <h4>User message</h4>
@@ -29,7 +34,7 @@ const toolCalls = (e: Record<string, any>) => (e.data && Array.isArray(e.data.to
           <pre v-if="e.content" class="block">{{ e.content }}</pre>
           <details v-if="e.data?.thinking"><summary>Thinking</summary><pre class="block">{{ e.data.thinking }}</pre></details>
           <div v-for="c in toolCalls(e)" :key="c.id" class="muted">→ calls <code>{{ c.name }}</code> <code>{{ JSON.stringify(c.args) }}</code></div>
-          <div v-if="e.data?.usage" class="muted">tokens in {{ e.data.usage.input_tokens }} / out {{ e.data.usage.output_tokens }}</div>
+          <div v-if="e.data?.usage" class="muted">tokens in {{ fmt(e.data.usage.input_tokens) }} / out {{ fmt(e.data.usage.output_tokens) }}</div>
         </template>
         <template v-else>
           <details><summary>Arguments</summary><pre class="block">{{ pretty(e.input) }}</pre></details>

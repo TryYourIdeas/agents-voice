@@ -1,5 +1,12 @@
 # Changes
 
+## 2026-11-19 — Token totals in the `/logs` viewer
+
+- Summary cards for total tokens in/out and a "Tokens by agent" table; a "Tokens in / out" column per turn
+  (includes its sub-agent turns); the turn detail header shows the turn's tokens and, when it delegated,
+  the total with sub-agents. `/api/logs/stats` `totals` gained `input_tokens`/`output_tokens`; turn rows
+  and `/api/logs/turns/:id` gained token fields. Turns with no recorded usage show "—".
+
 ## 2026-11-19 — A failing tool no longer aborts the whole request
 
 - Agent log turn 15: `execute_bash` failed (`file: not found`) and the thrown error ended the request with

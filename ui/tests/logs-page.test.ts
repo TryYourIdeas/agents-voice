@@ -5,14 +5,15 @@ import Logs from '../pages/logs.vue'
 
 const stubs = { NuxtLink: { template: '<a><slot /></a>' } }
 const stats = {
-  totals: { turns: 2, errors: 1, recursion_limits: 0, avg_duration_ms: 150 },
+  totals: { turns: 2, errors: 1, recursion_limits: 0, avg_duration_ms: 150, input_tokens: 135907, output_tokens: 13739 },
   agents: [{ agent: 'default' }, { agent: 'mail' }],
   tools: [{ name: 'echo', calls: 2, errors: 1, avg_duration_ms: 20 }],
-  tokens: [],
+  tokens: [{ agent: 'default', input_tokens: 135907, output_tokens: 13739 }],
 }
-const row = (o: any) => ({ id: 1, started_at: '2026-11-17T10:00:00Z', agent: 'default', status: 'ok', user_message: 'hello', final_response: 'hi there', tool_calls: 0, sub_agent_turns: 0, duration_ms: 12, ...o })
+const row = (o: any) => ({ id: 1, started_at: '2026-11-17T10:00:00Z', agent: 'default', status: 'ok', user_message: 'hello', final_response: 'hi there', tool_calls: 0, sub_agent_turns: 0, duration_ms: 12, input_tokens: 1500, output_tokens: 70, ...o })
 const detail = {
   id: 2, agent: 'default', status: 'ok', source: 'chat', duration_ms: 50, started_at: 'x', user_message: 'check mail', final_response: 'You have 3',
+  tokens: { input_tokens: 10, output_tokens: 2 }, tokens_total: { input_tokens: 1010, output_tokens: 7 },
   events: [
     { id: 1, kind: 'model', content: 'calling', data: { tool_calls: [{ id: 'c', name: 'delegate_to_agent', args: {} }] }, status: 'ok' },
     { id: 2, kind: 'tool', name: 'delegate_to_agent', input: { agentName: 'mail' }, content: 'sub reply', status: 'ok' },
@@ -41,6 +42,9 @@ describe('logs page', () => {
     const stat = (label: string) => summary.getAllByText(label).find((el) => el.tagName === 'SPAN')!.nextElementSibling!.textContent
     expect(stat('Turns')).toBe('2')
     expect(stat('Errors')).toBe('1')
+    expect(stat('Tokens in')).toBe('135,907')
+    expect(stat('Tokens out')).toBe('13,739')
+    expect(screen.getAllByText('1,500 / 70')).toHaveLength(2) // per-turn column
   })
 
   it('passes filters to the API and resets to the first page', async () => {
@@ -64,6 +68,9 @@ describe('logs page', () => {
     expect(within(detailRegion).getByText('tool: delegate_to_agent')).toBeTruthy()
     expect(within(detailRegion).getByText('Sub-agent turns')).toBeTruthy()
     expect(within(detailRegion).getByLabelText('Turn 3 (mail)')).toBeTruthy()
+    const tokens = within(within(detailRegion).getByLabelText('Turn 2 (default)')).getAllByTestId('turn-tokens')[0].textContent!.replace(/\s+/g, ' ')
+    expect(tokens).toContain('tokens in 10 / out 2')
+    expect(tokens).toContain('with sub-agents: in 1,010 / out 7')
   })
 
   it('shows the API error as an alert', async () => {
