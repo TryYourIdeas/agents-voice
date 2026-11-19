@@ -19,6 +19,7 @@ const agents = computed<string[]>(() => (stats.value?.agents ?? []).map((a: any)
 const page = computed(() => Math.floor(offset.value / limit) + 1)
 const pages = computed(() => Math.max(1, Math.ceil(total.value / limit)))
 
+const fmt = (n: unknown) => (n == null ? '—' : Number(n).toLocaleString('en-US'))
 const errMsg = (e: any) => e?.data?.statusMessage || e?.statusMessage || e?.message || String(e)
 
 async function loadTurns() {
@@ -74,6 +75,15 @@ onMounted(() => { loadStats(); loadTurns() })
       <div class="stat"><span>Errors</span><strong>{{ stats.totals.errors ?? 0 }}</strong></div>
       <div class="stat"><span>Recursion limits</span><strong>{{ stats.totals.recursion_limits ?? 0 }}</strong></div>
       <div class="stat"><span>Avg duration</span><strong>{{ stats.totals.avg_duration_ms ?? '—' }} ms</strong></div>
+      <div class="stat"><span>Tokens in</span><strong>{{ fmt(stats.totals.input_tokens) }}</strong></div>
+      <div class="stat"><span>Tokens out</span><strong>{{ fmt(stats.totals.output_tokens) }}</strong></div>
+      <details class="stat wide">
+        <summary>Tokens by agent ({{ stats.tokens.length }})</summary>
+        <table>
+          <thead><tr><th>Agent</th><th>In</th><th>Out</th></tr></thead>
+          <tbody><tr v-for="a in stats.tokens" :key="a.agent"><td>{{ a.agent }}</td><td>{{ fmt(a.input_tokens) }}</td><td>{{ fmt(a.output_tokens) }}</td></tr></tbody>
+        </table>
+      </details>
       <details class="stat wide">
         <summary>Tools ({{ stats.tools.length }})</summary>
         <table>
@@ -99,7 +109,7 @@ onMounted(() => { loadStats(); loadTurns() })
     </form>
 
     <table class="turns" aria-label="Turns">
-      <thead><tr><th>#</th><th>When</th><th>Agent</th><th>Status</th><th>User message</th><th>Reply</th><th>Tools</th><th>ms</th></tr></thead>
+      <thead><tr><th>#</th><th>When</th><th>Agent</th><th>Status</th><th>User message</th><th>Reply</th><th>Tools</th><th>Tokens in / out</th><th>ms</th></tr></thead>
       <tbody>
         <tr v-for="t in turns" :key="t.id" :class="{ active: selected?.id === t.id }">
           <td><button type="button" class="link" :aria-label="`Open turn ${t.id}`" @click="open(t.id)">{{ t.id }}</button></td>
@@ -109,9 +119,10 @@ onMounted(() => { loadStats(); loadTurns() })
           <td class="clip">{{ t.user_message }}</td>
           <td class="clip">{{ t.final_response || t.error }}</td>
           <td>{{ t.tool_calls }}</td>
+          <td class="nowrap">{{ fmt(t.input_tokens) }} / {{ fmt(t.output_tokens) }}</td>
           <td>{{ t.duration_ms }}</td>
         </tr>
-        <tr v-if="!turns.length && !loading"><td colspan="8" class="muted">No turns found.</td></tr>
+        <tr v-if="!turns.length && !loading"><td colspan="9" class="muted">No turns found.</td></tr>
       </tbody>
     </table>
 

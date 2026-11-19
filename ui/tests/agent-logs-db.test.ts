@@ -78,6 +78,23 @@ describe('getTurn', () => {
     expect(r.children[0]).toMatchObject({ id: sub, agent: 'mail' })
     expect(r.children[0].events[0].name).toBe('yahoo_get_new_emails')
   })
+  it('sums tokens per turn and across sub-agent turns', () => {
+    const usage = (i: number, o: number) => JSON.stringify({ usage: { input_tokens: i, output_tokens: o } })
+    const t = turn({ user: 'q' })
+    event(t, { kind: 'model', data: usage(100, 10) })
+    event(t, { kind: 'model', data: usage(200, 20) })
+    event(t, { kind: 'model', data: JSON.stringify({ tool_calls: [] }) }) // no usage recorded
+    const sub = turn({ parent: t, agent: 'mail', source: 'delegated' })
+    event(sub, { kind: 'model', data: usage(1000, 5) })
+    const r = getTurn(db, t)!
+    expect(r.tokens).toEqual({ input_tokens: 300, output_tokens: 30 })
+    expect(r.children[0].tokens).toEqual({ input_tokens: 1000, output_tokens: 5 })
+    expect(r.tokens_total).toEqual({ input_tokens: 1300, output_tokens: 35 })
+    // the list row covers the whole interaction, and sub-agent rows only their own
+    const rows = listTurns(db, { includeDelegated: true }).turns
+    expect(rows.find((x) => x.id === t)).toMatchObject({ input_tokens: 1300, output_tokens: 35 })
+    expect(rows.find((x) => x.id === sub)).toMatchObject({ input_tokens: 1000, output_tokens: 5 })
+  })
   it('returns null for an unknown id', () => expect(getTurn(db, 999)).toBeNull())
 })
 
@@ -93,12 +110,17 @@ describe('getStats', () => {
     expect(s.agents).toHaveLength(2)
     expect(s.tools).toEqual([{ name: 'echo', calls: 2, errors: 1, avg_duration_ms: 20 }])
     expect(s.tokens).toEqual([{ agent: 'default', input_tokens: 10, output_tokens: 4 }])
+    expect(s.totals).toMatchObject({ input_tokens: 10, output_tokens: 4 })
   })
   it('ignores rows whose data is truncated (invalid) JSON', () => {
     const a = turn({})
     event(a, { kind: 'model', data: JSON.stringify({ usage: { input_tokens: 10, output_tokens: 4 } }) })
     event(a, { kind: 'model', data: '{"tool_calls":[{"id":"abc","na' })
     expect(getStats(db).tokens).toEqual([{ agent: 'default', input_tokens: 10, output_tokens: 4 }])
+    // the totals, the per-turn list and the turn detail must tolerate the bad row too
+    expect(getStats(db).totals).toMatchObject({ input_tokens: 10, output_tokens: 4 })
+    expect(listTurns(db).turns[0]).toMatchObject({ input_tokens: 10, output_tokens: 4 })
+    expect(getTurn(db, a)!.tokens).toEqual({ input_tokens: 10, output_tokens: 4 })
   })
   it('works on an empty database', () => {
     expect(getStats(db).totals.turns).toBe(0)
