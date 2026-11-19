@@ -167,7 +167,20 @@ export interface TurnMeta {
  * active (so model/tool events attach to it, and nested agent runs link to it
  * as sub-agent turns), then stores the final reply or the error.
  */
-export async function loggedTurn(meta: TurnMeta, fn: () => Promise<string>, recursionLimitReply?: string): Promise<string> {
+// Whether the current agent run is a scheduled task (batch job, higher limits). Kept apart from turnContext
+// because it must work even when logging is disabled; sub-agents inherit it from the run that delegated.
+const runInfo = new AsyncLocalStorage<{ scheduled: boolean }>();
+
+export function isScheduledRun(): boolean {
+    return runInfo.getStore()?.scheduled ?? false;
+}
+
+export function loggedTurn(meta: TurnMeta, fn: () => Promise<string>, recursionLimitReply?: string): Promise<string> {
+    const scheduled = Boolean(meta.chatId?.startsWith("scheduled:")) || isScheduledRun();
+    return runInfo.run({ scheduled }, () => recordTurn(meta, fn, recursionLimitReply));
+}
+
+async function recordTurn(meta: TurnMeta, fn: () => Promise<string>, recursionLimitReply?: string): Promise<string> {
     const d = openLogsDb();
     if (!d) return fn();
     const parent = currentTurnId();
