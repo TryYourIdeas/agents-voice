@@ -51,4 +51,22 @@ describe("fetch_url", () => {
     expect(second).toContain("TAIL");
     expect(second).not.toContain("offset=");
   });
+
+  it("returns (does not throw) when reading the body times out", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => ({
+      ok: true, headers: new Headers({ "content-type": "text/html" }),
+      text: async () => { throw Object.assign(new Error("The operation was aborted due to timeout"), { name: "TimeoutError" }); },
+    })));
+    expect(await fetchUrlTool.invoke({ url: "https://example.com/slow" })).toContain("TimeoutError");
+  });
+
+  it("find returns only the matching sections of a long document", async () => {
+    const doc = "x".repeat(200_000) + " Model NM40 flow 12 m3/h " + "y".repeat(100_000);
+    vi.stubGlobal("fetch", vi.fn(async () => new Response(doc, { headers: { "content-type": "text/plain" } })));
+    const r = await fetchUrlTool.invoke({ url: "https://example.com/doc", find: "nm40|zzz" });
+    expect(r).toContain("1 matching section(s)");
+    expect(r).toContain("Model NM40 flow");
+    expect(r.length).toBeLessThan(2000);
+    expect(await fetchUrlTool.invoke({ url: "https://example.com/doc", find: "absent" })).toContain("No match");
+  });
 });
