@@ -1,5 +1,13 @@
 # Changes
 
+## 2026-11-19 — `fetch_url` reads PDFs and pages long documents; bounded research
+
+- Agent log turn 13 hit the recursion limit: `fetch_url` returned the raw bytes of a PDF catalogue
+  (`%PDF-1.7 …`), the agent downloaded it and looked for a converter that was not in the container.
+  `fetch_url` now converts PDFs to text with `pdftotext` (`poppler-utils` added to `whatsap/Dockerfile`;
+  **rebuild the image**), and takes an `offset` to read long pages/PDFs in parts.
+- System prompt: research is bounded (about 6 searches/fetches, then answer with what was found).
+
 ## 2026-11-19 — `fetch_url` returns errors instead of aborting the turn
 
 - A DNS failure (`EAI_AGAIN`, e.g. a URL the model guessed) or an HTTP 403 made `fetch_url` throw, which
