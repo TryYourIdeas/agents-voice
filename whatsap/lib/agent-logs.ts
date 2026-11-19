@@ -106,6 +106,27 @@ export function cap(text: string | undefined | null, max = Number(process.env.AG
     return text.length > max ? { text: text.slice(0, max), truncated: true } : { text, truncated: false };
 }
 
+const JSON_STRING_CAP = 2000;
+
+/**
+ * Serialises `data` to JSON that is ALWAYS valid: cutting the serialised text at `max` (as cap() does for
+ * plain text) left unterminated JSON that broke json_extract() in the viewer. When too big, long string
+ * values (e.g. a big my_write_file argument) are shortened first; as a last resort only `usage` is kept.
+ */
+export function capJson(value: unknown, max = Number(process.env.AGENT_LOGS_MAX_CHARS) || DEFAULT_MAX_CHARS): { text: string; truncated: boolean } {
+    const full = JSON.stringify(value);
+    if (full.length <= max) return { text: full, truncated: false };
+    const shrink = (v: unknown): unknown =>
+        typeof v === "string" ? (v.length > JSON_STRING_CAP ? v.slice(0, JSON_STRING_CAP) + "…[truncated]" : v)
+        : Array.isArray(v) ? v.map(shrink)
+        : v && typeof v === "object" ? Object.fromEntries(Object.entries(v).map(([k, x]) => [k, shrink(x)]))
+        : v;
+    const small = JSON.stringify(shrink(value));
+    if (small.length <= max) return { text: small, truncated: true };
+    const usage = (value as any)?.usage;
+    return { text: JSON.stringify({ truncated: true, ...(usage ? { usage } : {}) }), truncated: true };
+}
+
 /** Flattens message content to text; images/files become short placeholders (never base64). */
 export function contentToText(content: unknown): string {
     if (content == null) return "";
@@ -199,7 +220,7 @@ export function logEvent(e: EventInput): void {
     safe(() => {
         const c = cap(e.content);
         const inp = e.input === undefined ? null : cap(typeof e.input === "string" ? e.input : JSON.stringify(e.input));
-        const data = e.data === undefined ? null : cap(JSON.stringify(e.data));
+        const data = e.data === undefined ? null : capJson(e.data);
         d.prepare(
             `INSERT INTO events (turn_id, ts, kind, name, tool_call_id, input, content, data, status, duration_ms, truncated)
              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`

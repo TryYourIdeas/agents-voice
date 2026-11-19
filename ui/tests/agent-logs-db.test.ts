@@ -94,6 +94,12 @@ describe('getStats', () => {
     expect(s.tools).toEqual([{ name: 'echo', calls: 2, errors: 1, avg_duration_ms: 20 }])
     expect(s.tokens).toEqual([{ agent: 'default', input_tokens: 10, output_tokens: 4 }])
   })
+  it('ignores rows whose data is truncated (invalid) JSON', () => {
+    const a = turn({})
+    event(a, { kind: 'model', data: JSON.stringify({ usage: { input_tokens: 10, output_tokens: 4 } }) })
+    event(a, { kind: 'model', data: '{"tool_calls":[{"id":"abc","na' })
+    expect(getStats(db).tokens).toEqual([{ agent: 'default', input_tokens: 10, output_tokens: 4 }])
+  })
   it('works on an empty database', () => {
     expect(getStats(db).totals.turns).toBe(0)
   })
