@@ -329,3 +329,9 @@ Three standalone Compose files run the WhatsApp bot on the
 |---|---|---|
 | `GENERATE_POSTS_DIR` | `../generate-posts` (Docker: `/data/generate-posts`, mounted from `../generate-posts`) | Location of the `web/generate-posts` project. It needs its own `npm install` and `.env` (see its README). |
 | `GENERATE_POSTS_TIMEOUT_MS` | `1500000` | Max time for one pipeline run |
+
+## Fetch URL guard
+
+| Variable | Default | Description |
+|---|---|---|
+| `FETCH_URL_GUARD` | `true` | When not `false`, `fetch_url` only accepts URLs that appear in a user message or an earlier tool result (never URLs the model wrote itself) |

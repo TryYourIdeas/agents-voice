@@ -1,5 +1,15 @@
 # Changes
 
+## 2026-11-19 — `fetch_url` returns errors instead of aborting the turn
+
+- A DNS failure (`EAI_AGAIN`, e.g. a URL the model guessed) or an HTTP 403 made `fetch_url` throw, which
+  aborted the whole request with "Sorry, something went wrong" (seen in the agent logs, turns 5, 11, 12).
+  The tool now returns the error as text so the agent can try another source.
+- New "Web sources" rule in the system prompt (only fetch URLs the user gave or that appeared in search
+  results/fetched pages) and a code-level guard, `middleware/fetch-url-guard-middleware.ts` (default and
+  named agents): `fetch_url` for a URL not seen in a user message or tool result is blocked with an error
+  the model can read. `FETCH_URL_GUARD=false` disables it.
+
 ## 2026-11-19 — Agent logs: truncated `data` JSON no longer breaks `/api/logs/stats`
 
 - The logger cut oversized event `data` (e.g. a big `my_write_file` argument) mid-JSON, so the token
