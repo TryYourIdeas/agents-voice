@@ -1,5 +1,13 @@
 # Changes
 
+## 2026-11-19 — A failing tool no longer aborts the whole request
+
+- Agent log turn 15: `execute_bash` failed (`file: not found`) and the thrown error ended the request with
+  "Sorry, something went wrong". New `middleware/tool-error-middleware.ts` (default and named agents) turns
+  any thrown tool error into an error result the model can read and work around. (The turn's error was
+  labelled `FetchUrlGuardMiddlewareError` only because that middleware wrapped the failing call.)
+- `my_read_file` returns PDFs as extracted text instead of raw bytes.
+
 ## 2026-11-19 — `fetch_url`: body timeouts no longer abort the turn; `find` searches long documents
 
 - Agent log turn 14: the 30 s timeout fired while a page body was still downloading and, thrown outside the

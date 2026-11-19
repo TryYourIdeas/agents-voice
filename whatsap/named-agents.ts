@@ -13,6 +13,7 @@ import { datetimeMiddleware } from "./middleware/datetime-middleware.ts";
 import { createMemoryMiddleware } from "./middleware/memory-middleware.ts";
 import { agentLogsMiddleware } from "./middleware/agent-logs-middleware.ts";
 import { fetchUrlGuardMiddleware } from "./middleware/fetch-url-guard-middleware.ts";
+import { toolErrorMiddleware } from "./middleware/tool-error-middleware.ts";
 import { loggedTurn } from "./lib/agent-logs.ts";
 import { extractText, agentRecursionLimit, isRecursionLimitError, RECURSION_LIMIT_REPLY } from "./util.ts";
 import {
@@ -156,6 +157,8 @@ function getNamedAgent(deviceName: string, agentName: string): ReturnType<typeof
             agentLogsMiddleware,
             // after the logger so blocked fetches are logged too
             fetchUrlGuardMiddleware,
+            // innermost: any tool error becomes a readable error result instead of aborting the turn
+            toolErrorMiddleware,
         ],
     });
 
