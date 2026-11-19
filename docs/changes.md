@@ -1,5 +1,12 @@
 # Changes
 
+## 2026-11-19 — `fetch_url`: body timeouts no longer abort the turn; `find` searches long documents
+
+- Agent log turn 14: the 30 s timeout fired while a page body was still downloading and, thrown outside the
+  initial `fetch()`, aborted the turn. All `fetch_url` errors are now returned as text.
+- New `find` parameter (terms separated by `|`): returns only the sections around the matches, so the
+  agent can look up "NM40" in a 740 000-character PDF catalogue in one call instead of paging 15 times.
+
 ## 2026-11-19 — `fetch_url` reads PDFs and pages long documents; bounded research
 
 - Agent log turn 13 hit the recursion limit: `fetch_url` returned the raw bytes of a PDF catalogue
