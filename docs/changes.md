@@ -1,5 +1,12 @@
 # Changes
 
+## 2026-11-18 — `post-writer` agent (generate-posts integration)
+
+- New named agent `post-writer` with skill `post-prompt-writing` and named-only tools `post_queue_prompt` /
+  `post_run_pipeline` (`lib/generate-posts.ts`): writes the prompt, runs `web/generate-posts`'
+  `post-with-image.js` and publishes a draft article automatically. Refuses to run while other prompts are
+  queued in generate-posts. All `whatsap-*-docker-compose.yml` mount `../generate-posts`.
+
 ## 2026-11-17 — `ui` home page; TTS/STT moved to `/tts`
 
 - `/` is now a landing page linking to the three tools: `/tts` (the TTS/STT screen, moved from `/`),

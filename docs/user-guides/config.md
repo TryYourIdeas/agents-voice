@@ -322,3 +322,10 @@ Three standalone Compose files run the WhatsApp bot on the
 - `SCHEDULED_RECURSION_LIMIT` (whatsap, optional): step limit for scheduled task runs; defaults to twice `AGENT_RECURSION_LIMIT` since they are batch jobs with no user waiting.
 - Scheduled tasks that hit the recursion limit are retried once after 10 minutes (the retry prompt says to check what is already saved and finish only the rest), then the chat is told and the task waits for its next scheduled time. The lfm3 compose files set `AGENT_TIMEZONE` (default `America/Sao_Paulo`).
 - The agent's `fetch_url` tool converts HTML pages to readable text (headings, list items, link targets; scripts/styles dropped) before applying its 50,000-character cap, so small local models can read news-style pages.
+
+## Post writer (`post-writer` agent)
+
+| Variable | Default | Description |
+|---|---|---|
+| `GENERATE_POSTS_DIR` | `../generate-posts` (Docker: `/data/generate-posts`, mounted from `../generate-posts`) | Location of the `web/generate-posts` project. It needs its own `npm install` and `.env` (see its README). |
+| `GENERATE_POSTS_TIMEOUT_MS` | `1500000` | Max time for one pipeline run |

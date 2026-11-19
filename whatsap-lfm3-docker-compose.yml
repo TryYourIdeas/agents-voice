@@ -70,8 +70,13 @@ services:
       # SQLite log of user messages, agent/sub-agent replies and tool results
       # (whatsap/lib/agent-logs.ts), kept on the host for later analysis.
       - ./logs:/data/logs
+      # Sibling generate-posts project (web/generate-posts): the post-writer agent
+      # queues prompts there and runs its post-with-image.js pipeline with the
+      # project's own .env and node_modules (install them on the host first).
+      - ../generate-posts:/data/generate-posts
     environment:
       AGENT_LOGS_DB: /data/logs/agent-logs.db
+      GENERATE_POSTS_DIR: /data/generate-posts
       # Small local models can loop on web_search; fail fast instead of 100 steps.
       AGENT_RECURSION_LIMIT: "60"
       AGENT_TIMEZONE: ${AGENT_TIMEZONE:-America/Sao_Paulo}
