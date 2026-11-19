@@ -10,13 +10,31 @@ const MAX_CONTENT_LENGTH = 50_000;
 const FIND_WINDOW = 400; // characters of context on each side of a match
 const FIND_MAX_MATCHES = 12;
 
+/**
+ * Case-insensitive regex for a search term that tolerates how model numbers are written in catalogues:
+ * "NM40" also matches "NM 40", "NM-40" and "NM40/12"; spaces/hyphens in the term match any run of them.
+ */
+export function termRegex(term: string): RegExp {
+  const sep = "[\\s\\-_.]*";
+  const parts = term
+    .toLowerCase()
+    .replace(/([a-z])(\d)|(\d)([a-z])/g, (_m, a, b, c, d) => `${a ?? c} ${b ?? d}`) // split letter/digit boundaries
+    .split(/[\s\-_]+/)
+    .filter(Boolean)
+    .map((p) => p.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"));
+  return new RegExp(parts.join(sep), "gi");
+}
+
 /** Snippets around every (case-insensitive) occurrence of any term, merged when they overlap. */
 export function findInText(text: string, find: string): string {
-  const terms = find.split(/\s*[|\n]\s*/).map((t) => t.trim().toLowerCase()).filter(Boolean);
-  const lower = text.toLowerCase();
+  const terms = find.split(/\s*[|\n]\s*/).map((t) => t.trim()).filter((t) => /[\p{L}\p{N}]/u.test(t));
   const hits: number[] = [];
   for (const t of terms) {
-    for (let i = lower.indexOf(t); i !== -1 && hits.length < 500; i = lower.indexOf(t, i + t.length)) hits.push(i);
+    const re = termRegex(t);
+    for (const m of text.matchAll(re)) {
+      hits.push(m.index!);
+      if (hits.length >= 500) break;
+    }
   }
   hits.sort((a, b) => a - b);
   const windows: [number, number][] = [];

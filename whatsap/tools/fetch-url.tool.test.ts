@@ -69,4 +69,12 @@ describe("fetch_url", () => {
     expect(r.length).toBeLessThan(2000);
     expect(await fetchUrlTool.invoke({ url: "https://example.com/doc", find: "absent" })).toContain("No match");
   });
+
+  it("find tolerates catalogue spellings of a model number", async () => {
+    const doc = "intro. Bomba NM 40/12 A flow. Also nm-50 pump. And NM4 only." + "z".repeat(5000);
+    vi.stubGlobal("fetch", vi.fn(async () => new Response(doc, { headers: { "content-type": "text/plain" } })));
+    const r = await fetchUrlTool.invoke({ url: "https://example.com/spell", find: "NM40|NM50" });
+    expect(r).toContain("NM 40/12 A");
+    expect(r).toContain("nm-50");
+  });
 });

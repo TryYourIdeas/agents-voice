@@ -27,6 +27,16 @@ export function scheduledRecursionLimit(): number {
     return Number.isFinite(n) && n > 0 ? n : agentRecursionLimit() * 2;
 }
 
+// Tool calls one request may make before the agent is forced to answer with what it has. Each tool call costs
+// two graph steps (model + tool), so by default this is 40% of the recursion limit: the agent is cut off while
+// it can still write an answer, instead of hitting the limit and replying "stuck looping". Override with
+// TOOL_CALL_BUDGET (chat) / SCHEDULED_TOOL_CALL_BUDGET (scheduled tasks).
+export function toolCallBudget(scheduled: boolean): number {
+    const n = Number.parseInt((scheduled ? process.env.SCHEDULED_TOOL_CALL_BUDGET : process.env.TOOL_CALL_BUDGET) || '', 10);
+    if (Number.isFinite(n) && n > 0) return n;
+    return Math.max(5, Math.floor((scheduled ? scheduledRecursionLimit() : agentRecursionLimit()) * 0.4));
+}
+
 export const RECURSION_LIMIT_REPLY =
     "Sorry, I got stuck looping on tool calls without reaching an answer. Please try rephrasing or asking something narrower.";
 

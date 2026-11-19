@@ -335,3 +335,10 @@ Three standalone Compose files run the WhatsApp bot on the
 | Variable | Default | Description |
 |---|---|---|
 | `FETCH_URL_GUARD` | `true` | When not `false`, `fetch_url` only accepts URLs that appear in a user message or an earlier tool result (never URLs the model wrote itself) |
+
+## Tool-call budget
+
+| Variable | Default | Description |
+|---|---|---|
+| `TOOL_CALL_BUDGET` | 40% of `AGENT_RECURSION_LIMIT` (24 when it is 60) | Tool calls one chat request may make before the agent must answer with what it has |
+| `SCHEDULED_TOOL_CALL_BUDGET` | 40% of `SCHEDULED_RECURSION_LIMIT` | Same, for scheduled tasks |

@@ -1,5 +1,13 @@
 # Changes
 
+## 2026-11-19 — Tool-call budget per request; `find` tolerates model-number spellings
+
+- Agent log turns 13 and 16 ended in "stuck looping" after ~30 tool calls with no answer; the prompt's "stop after
+  ~6 searches" was ignored. New `middleware/tool-budget-middleware.ts` (default and named agents): once a request
+  has used its tool-call budget (40% of `AGENT_RECURSION_LIMIT`, i.e. 24 at 60; scheduled tasks 40% of their
+  larger limit; override with `TOOL_CALL_BUDGET` / `SCHEDULED_TOOL_CALL_BUDGET`) further tool calls are
+  disabled and the model must answer with what it found and say what is missing.
+- `fetch_url` `find` matches "NM40" in "NM 40/12", "NM-40", etc.
 ## 2026-11-19 — Token totals in the `/logs` viewer
 
 - Summary cards for total tokens in/out and a "Tokens by agent" table; a "Tokens in / out" column per turn
