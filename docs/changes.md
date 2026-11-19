@@ -1,5 +1,11 @@
 # Changes
 
+## 2026-11-19 — Agent logs: truncated `data` JSON no longer breaks `/api/logs/stats`
+
+- The logger cut oversized event `data` (e.g. a big `my_write_file` argument) mid-JSON, so the token
+  queries failed with `malformed JSON` (HTTP 500). `data` is now always valid JSON (long strings are
+  shortened, `usage` is kept) and the viewer ignores already-stored invalid rows.
+
 ## 2026-11-18 — `post-writer` agent (generate-posts integration)
 
 - New named agent `post-writer` with skill `post-prompt-writing` and named-only tools `post_queue_prompt` /

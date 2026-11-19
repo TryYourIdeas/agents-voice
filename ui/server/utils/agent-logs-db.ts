@@ -38,6 +38,10 @@ export interface TurnFilters {
   offset?: number
 }
 
+// Older log rows (written before the logger kept `data` valid JSON) may hold truncated JSON, which makes
+// json_extract() throw for the whole query; treat those rows as having no usage.
+const usage = (col: string, field: string) => `CASE WHEN json_valid(${col}) THEN json_extract(${col}, '$.usage.${field}') END`
+
 const clamp = (n: unknown, lo: number, hi: number, dflt: number) => {
   const v = Number(n)
   return Number.isFinite(v) ? Math.min(Math.max(Math.trunc(v), lo), hi) : dflt
@@ -124,8 +128,8 @@ export function getStats(db: DatabaseSync) {
                 FROM events WHERE kind = 'tool' GROUP BY name ORDER BY calls DESC`)
     .all()
   const tokens = db
-    .prepare(`SELECT t.agent, sum(json_extract(e.data, '$.usage.input_tokens')) AS input_tokens,
-                     sum(json_extract(e.data, '$.usage.output_tokens')) AS output_tokens
+    .prepare(`SELECT t.agent, sum(${usage('e.data', 'input_tokens')}) AS input_tokens,
+                     sum(${usage('e.data', 'output_tokens')}) AS output_tokens
                 FROM events e JOIN turns t ON t.id = e.turn_id WHERE e.kind = 'model' GROUP BY t.agent`)
     .all()
   return { totals, agents, tools, tokens }

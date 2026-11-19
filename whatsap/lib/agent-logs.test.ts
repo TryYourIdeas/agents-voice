@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, vi } from "vitest";
 import { createAgent, tool, fakeModel } from "langchain";
 import { AIMessage, HumanMessage } from "@langchain/core/messages";
 import { z } from "zod";
-import { openLogsDb, resetLogsDb, loggedTurn, logEvent, contentToText, cap, currentTurnId } from "./agent-logs.ts";
+import { openLogsDb, resetLogsDb, loggedTurn, logEvent, contentToText, cap, capJson, currentTurnId } from "./agent-logs.ts";
 import { agentLogsMiddleware } from "../middleware/agent-logs-middleware.ts";
 
 function db() {
@@ -13,6 +13,23 @@ const rows = (sql: string, ...p: any[]) => db().prepare(sql).all(...p) as any[];
 beforeEach(() => {
     resetLogsDb();
     db();
+});
+
+describe("capJson", () => {
+    it("keeps small values as is", () => {
+        expect(capJson({ a: 1 }, 100)).toEqual({ text: '{"a":1}', truncated: false });
+    });
+    it("always returns valid JSON when too big, shortening long strings and keeping usage", () => {
+        const big = { tool_calls: [{ name: "my_write_file", args: { content: "x".repeat(50_000) } }], usage: { input_tokens: 7, output_tokens: 3 } };
+        const r = capJson(big, 10_000);
+        expect(r.truncated).toBe(true);
+        const parsed = JSON.parse(r.text);
+        expect(parsed.usage).toEqual({ input_tokens: 7, output_tokens: 3 });
+        expect(parsed.tool_calls[0].args.content.length).toBeLessThan(2100);
+        const huge = { usage: { input_tokens: 1 }, tool_calls: Array.from({ length: 500 }, (_, i) => ({ id: "id" + i, name: "n".repeat(100) })) };
+        const r2 = capJson(huge, 500);
+        expect(JSON.parse(r2.text)).toEqual({ truncated: true, usage: { input_tokens: 1 } });
+    });
 });
 
 describe("contentToText / cap", () => {
