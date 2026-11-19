@@ -49,6 +49,9 @@ const clamp = (n: unknown, lo: number, hi: number, dflt: number) => {
 
 const preview = (s: string | null) => (s && s.length > PREVIEW_CHARS ? s.slice(0, PREVIEW_CHARS) + '…' : s)
 
+// ids of a turn and all of its sub-agent turns, so a row's tokens cover the whole interaction
+const TREE_IDS = `(WITH RECURSIVE d(id) AS (SELECT t.id UNION ALL SELECT c.id FROM turns c JOIN d ON c.parent_turn_id = d.id) SELECT id FROM d)`
+
 export function listTurns(db: DatabaseSync, f: TurnFilters = {}) {
   const where: string[] = []
   const params: (string | number)[] = []
@@ -70,7 +73,9 @@ export function listTurns(db: DatabaseSync, f: TurnFilters = {}) {
       `SELECT t.id, t.parent_turn_id, t.started_at, t.duration_ms, t.device, t.chat_id, t.agent, t.source, t.status,
               t.user_message, t.final_response, t.error,
               (SELECT count(*) FROM turns c WHERE c.parent_turn_id = t.id) AS sub_agent_turns,
-              (SELECT count(*) FROM events e WHERE e.turn_id = t.id AND e.kind = 'tool') AS tool_calls
+              (SELECT count(*) FROM events e WHERE e.turn_id = t.id AND e.kind = 'tool') AS tool_calls,
+              (SELECT sum(${usage('e.data', 'input_tokens')}) FROM events e WHERE e.kind = 'model' AND e.turn_id IN ${TREE_IDS}) AS input_tokens,
+              (SELECT sum(${usage('e.data', 'output_tokens')}) FROM events e WHERE e.kind = 'model' AND e.turn_id IN ${TREE_IDS}) AS output_tokens
          FROM turns t ${w} ORDER BY t.id DESC LIMIT ? OFFSET ?`
     )
     .all(...params, limit, offset) as Record<string, any>[]
@@ -82,8 +87,14 @@ export function listTurns(db: DatabaseSync, f: TurnFilters = {}) {
   }
 }
 
+export interface TokenTotals { input_tokens: number; output_tokens: number }
+
 export interface TurnDetail {
   [k: string]: any
+  /** tokens used by this turn's own model calls */
+  tokens: TokenTotals
+  /** tokens including all sub-agent turns */
+  tokens_total: TokenTotals
   events: Record<string, any>[]
   children: TurnDetail[]
 }
@@ -102,11 +113,19 @@ export function getTurn(db: DatabaseSync, id: number, depth = 0): TurnDetail | n
       if (child) children.push(child)
     }
   }
-  return {
-    ...turn,
-    events: events.map((e) => ({ ...e, data: parseJson(e.data), input: parseJson(e.input) })),
-    children,
+  const parsed = events.map((e) => ({ ...e, data: parseJson(e.data), input: parseJson(e.input) }))
+  const tokens = { input_tokens: 0, output_tokens: 0 }
+  for (const e of parsed) {
+    const u = e.kind === 'model' ? (e.data as any)?.usage : null
+    tokens.input_tokens += Number(u?.input_tokens) || 0
+    tokens.output_tokens += Number(u?.output_tokens) || 0
   }
+  const tokens_total = { ...tokens }
+  for (const c of children) {
+    tokens_total.input_tokens += c.tokens_total.input_tokens
+    tokens_total.output_tokens += c.tokens_total.output_tokens
+  }
+  return { ...turn, events: parsed, children, tokens, tokens_total }
 }
 
 function parseJson(s: unknown): unknown {
@@ -132,5 +151,10 @@ export function getStats(db: DatabaseSync) {
                      sum(${usage('e.data', 'output_tokens')}) AS output_tokens
                 FROM events e JOIN turns t ON t.id = e.turn_id WHERE e.kind = 'model' GROUP BY t.agent`)
     .all()
-  return { totals, agents, tools, tokens }
+  const grand = db
+    .prepare(`SELECT sum(${usage('data', 'input_tokens')}) AS input_tokens,
+                     sum(${usage('data', 'output_tokens')}) AS output_tokens
+                FROM events WHERE kind = 'model'`)
+    .get() as Record<string, number | null>
+  return { totals: { ...totals, input_tokens: grand.input_tokens ?? 0, output_tokens: grand.output_tokens ?? 0 }, agents, tools, tokens }
 }

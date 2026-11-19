@@ -8,6 +8,12 @@
   larger limit; override with `TOOL_CALL_BUDGET` / `SCHEDULED_TOOL_CALL_BUDGET`) further tool calls are
   disabled and the model must answer with what it found and say what is missing.
 - `fetch_url` `find` matches "NM40" in "NM 40/12", "NM-40", etc.
+## 2026-11-19 — Token totals in the `/logs` viewer
+
+- Summary cards for total tokens in/out and a "Tokens by agent" table; a "Tokens in / out" column per turn
+  (includes its sub-agent turns); the turn detail header shows the turn's tokens and, when it delegated,
+  the total with sub-agents. `/api/logs/stats` `totals` gained `input_tokens`/`output_tokens`; turn rows
+  and `/api/logs/turns/:id` gained token fields. Turns with no recorded usage show "—".
 
 ## 2026-11-19 — A failing tool no longer aborts the whole request
 
