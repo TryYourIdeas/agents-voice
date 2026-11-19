@@ -12,6 +12,7 @@ import { createVisionRoutingMiddleware } from "./lib/vision-routing.ts";
 import { datetimeMiddleware } from "./middleware/datetime-middleware.ts";
 import { createMemoryMiddleware } from "./middleware/memory-middleware.ts";
 import { agentLogsMiddleware } from "./middleware/agent-logs-middleware.ts";
+import { fetchUrlGuardMiddleware } from "./middleware/fetch-url-guard-middleware.ts";
 import { loggedTurn } from "./lib/agent-logs.ts";
 import { extractText, agentRecursionLimit, isRecursionLimitError, RECURSION_LIMIT_REPLY } from "./util.ts";
 import {
@@ -153,6 +154,8 @@ function getNamedAgent(deviceName: string, agentName: string): ReturnType<typeof
             logModelCallMiddleware,
             messageTypeTraceMiddleware,
             agentLogsMiddleware,
+            // after the logger so blocked fetches are logged too
+            fetchUrlGuardMiddleware,
         ],
     });
 

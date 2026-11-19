@@ -10,13 +10,22 @@ export const fetchUrlTool = tool(
   async ({ url }: { url: string }) => {
     console.log("Fetching URL:", url);
 
-    const response = await fetch(url, {
-      redirect: "follow",
-      signal: AbortSignal.timeout(30_000),
-    });
+    // Failures are returned as text, not thrown: a thrown tool error aborted the whole agent turn
+    // ("Sorry, something went wrong"), e.g. when the model guessed a domain that does not resolve
+    // (EAI_AGAIN) or a site answered 403. Returned, the model can read the error and try another URL.
+    let response: Response;
+    try {
+      response = await fetch(url, {
+        redirect: "follow",
+        signal: AbortSignal.timeout(30_000),
+      });
+    } catch (e: any) {
+      const cause = e?.cause?.code || e?.cause?.message || e?.name;
+      return `Error: could not fetch ${url} (${e?.message ?? e}${cause ? `: ${cause}` : ""}). The address may be wrong or unreachable; do not retry it, try a different source.`;
+    }
 
     if (!response.ok) {
-      throw new Error(`Failed to fetch ${url}: ${response.status} ${response.statusText}`);
+      return `Error: failed to fetch ${url}: ${response.status} ${response.statusText}. Try a different source.`;
     }
 
     const contentType = response.headers.get("content-type") || "unknown";
