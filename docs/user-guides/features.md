@@ -134,6 +134,9 @@ agent backed by Anthropic's Messages API (or the local `llama-server`, see `conf
 summary to me", "make an audio of the story") and it sends a WhatsApp voice note to the same chat
 via the `send_audio` tool. Audio is only generated when asked. Needs `TTS_URL` (see
 `config.md`).
+- **Post writer** — `@ai @agent post-writer write a post about <topic>` (or a link/text, "with a funny
+  image") creates the prompt, runs the `generate-posts` project's image pipeline and publishes a draft
+  article. See `whatsap/docs/post-writer.md`.
 - **Date and time awareness** — every agent call is stamped with today's date, time and timezone,
   and the `get_current_datetime` tool returns exact values (optionally for another timezone). Recurring
   task runs are told which day they are for. Configure the zone with `AGENT_TIMEZONE`.

@@ -7,6 +7,7 @@ import { HumanMessage, SystemMessage } from "@langchain/core/messages";
 
 import { model, visionModel, sharedTools, sharedCheckpointer } from "./shared.ts";
 import { yahooGetNewEmailsTool, yahooDraftEmailTool } from "./tools/yahoo-mail.tool.ts";
+import { postQueuePromptTool, postRunPipelineTool } from "./tools/generate-posts.tool.ts";
 import { createVisionRoutingMiddleware } from "./lib/vision-routing.ts";
 import { datetimeMiddleware } from "./middleware/datetime-middleware.ts";
 import { createMemoryMiddleware } from "./middleware/memory-middleware.ts";
@@ -109,7 +110,7 @@ const listAvailableAgentsTool = tool(
 // Tools only named agents may use (never the default agent): the Yahoo mail
 // tools are reachable only through the `mail` agent, which the default agent
 // can still delegate to.
-const namedOnlyTools = [yahooGetNewEmailsTool, yahooDraftEmailTool];
+const namedOnlyTools = [yahooGetNewEmailsTool, yahooDraftEmailTool, postQueuePromptTool, postRunPipelineTool];
 
 // Keyed by `${deviceName}:${agentName}` — one instance per device per agent.
 const namedAgents = new Map<string, ReturnType<typeof createAgent>>();
