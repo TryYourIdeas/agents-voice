@@ -25,3 +25,12 @@ describe("getModelConfig", () => {
         expect(getModelConfig(1, "/nonexistent/dir/x.db")).toBeUndefined();
     });
 });
+
+describe("effectiveApiKey", () => {
+    it("falls back to a placeholder when the configuration has no key (llama-server ignores it)", async () => {
+        const { effectiveApiKey } = await import("./model-configs.ts");
+        expect(effectiveApiKey("")).toBe("not-needed");
+        expect(effectiveApiKey("  ")).toBe("not-needed");
+        expect(effectiveApiKey("sk-real")).toBe("sk-real");
+    });
+});

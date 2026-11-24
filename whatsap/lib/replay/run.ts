@@ -5,7 +5,7 @@
 // points at the original (replay_of) and the final sandbox state is stored for the UI.
 
 import { openLogsDb, loggedTurn, currentTurnId } from "../agent-logs.ts";
-import { getModelConfig, type ModelConfig } from "../model-configs.ts";
+import { getModelConfig, effectiveApiKey, type ModelConfig } from "../model-configs.ts";
 import { Sandbox } from "./sandbox.ts";
 import { seedFromEvents, type SeedEvent } from "./seed.ts";
 
@@ -49,7 +49,7 @@ async function defaultBuildAgent({ agentName, device, config, sandbox }: Paramet
     const model = new ChatAnthropic({
         model: config.model,
         anthropicApiUrl: config.baseUrl,
-        apiKey: config.apiKey,
+        apiKey: effectiveApiKey(config.apiKey),
         temperature: 0,
         maxRetries: 2,
         maxTokens: process.env.MAX_TOKENS ? Number(process.env.MAX_TOKENS) : undefined,

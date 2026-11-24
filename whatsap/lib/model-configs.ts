@@ -33,3 +33,8 @@ export function getModelConfig(id: number, file = modelConfigsPath()): ModelConf
         try { db?.close(); } catch {}
     }
 }
+
+/** ChatAnthropic refuses an empty key; servers like llama-server ignore the value, so a keyless configuration gets a placeholder. */
+export function effectiveApiKey(key: string): string {
+    return key.trim() || "not-needed";
+}
