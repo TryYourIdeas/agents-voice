@@ -170,3 +170,12 @@ A small internal HTTP service that renders PlantUML diagram source to SVG/PNG, u
 `system-design-coach` named agent's `render_diagram` tool so it can produce architecture/sequence
 diagrams as part of its feedback. Runs with a read-only filesystem, dropped capabilities, and no
 shell invocation (see `plantuml-renderer/README.md`).
+
+
+## Model configurations and log replay
+
+- **Model configurations** (`/models`): a list of reasoning-model configurations — name, model name, base URL and API key — with Add, Edit and Delete. API keys are shown masked (last four characters); leaving the key blank on Edit keeps the stored one.
+- **Reasoning Model** column in `/logs`: the real model that answered each turn (older rows show `—`), and a **Replay of #N** link on replayed turns that opens the original.
+- **Replay** (`/replay/<turn id>`): pick a model configuration and re-run that turn's first user message with it, in a **sandbox**. The replay agent has mock tools only — mock chat, mock file system, mock mailbox — so it can never message anyone, send mail, write real files or run shell commands. The sandbox starts from what the original run saw (its logged file reads and mailbox reads) and the page shows the resulting chat messages, files (click one to read it), inbox, sent mail and the email viewer. The replay is logged as a normal turn linked to the original.
+
+Limits: text only (logged images are placeholders), a fresh conversation, no delegation to other agents (the replayed agent does the work itself), `execute_bash` and scheduled tasks are disabled. `web_search` and `fetch_url` stay real (read-only network).

@@ -56,6 +56,11 @@ services:
       - ../generate-posts:/data/generate-posts
     environment:
       AGENT_LOGS_DB: /data/logs/agent-logs.db
+      # Model configurations managed in the UI (/models); read by id when a logged turn is replayed.
+      MODEL_CONFIGS_DB: /data/logs/model-configs.db
+      # Real name of the reasoning model, stored in each log row's "Reasoning Model" field
+      # (ANTHROPIC_MODEL is only a placeholder on llama-server). Keep in sync with llama-server's LFM3_HF_MODEL.
+      REASONING_MODEL_NAME: "LFM3-1.7B (Q8_0)"
       GENERATE_POSTS_DIR: /data/generate-posts
       # Small local models can loop on web_search; fail fast instead of 100 steps.
       AGENT_RECURSION_LIMIT: "60"
@@ -138,6 +143,7 @@ services:
       NUXT_WHATSAP_API_URL: http://whatsap:4001
       NUXT_NEW_DEVICES_DIR: /data/new-devices
       NUXT_AGENT_LOGS_DB: /data/logs/agent-logs.db
+      NUXT_MODEL_CONFIGS_DB: /data/logs/model-configs.db
     volumes:
       # Shared with whatsap's own ./whatsap/new-devices mount: the "Add Device"
       # form creates a device by writing a file here (whatsap/device-onboarding.ts).

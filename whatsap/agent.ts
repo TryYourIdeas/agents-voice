@@ -2,6 +2,7 @@ import { createMessageTypeTraceMiddleware } from "./lib/message-trace.ts";
 import { createAgent } from "langchain";
 import { HumanMessage, SystemMessage, type MessageContent } from "@langchain/core/messages";
 import { readFileSync } from "fs";
+import type { AgentOverrides } from "./lib/agent-overrides.ts";
 
 import { model, visionModel, sharedTools, sharedCheckpointer } from "./shared.ts";
 import { createVisionRoutingMiddleware } from "./lib/vision-routing.ts";
@@ -12,11 +13,12 @@ import { agentLogsMiddleware } from "./middleware/agent-logs-middleware.ts";
 import { fetchUrlGuardMiddleware } from "./middleware/fetch-url-guard-middleware.ts";
 import { toolBudgetMiddleware } from "./middleware/tool-budget-middleware.ts";
 import { toolErrorMiddleware } from "./middleware/tool-error-middleware.ts";
-import { loggedTurn } from "./lib/agent-logs.ts";
+import { loggedTurn, reasoningModelName } from "./lib/agent-logs.ts";
 import { extractText, agentRecursionLimit, isRecursionLimitError, RECURSION_LIMIT_REPLY } from "./util.ts";
 import { createSkillMiddleware, createLogModelCallMiddleware } from "langchain-agent-kit";
 
 export { model } from "./shared.ts";
+export type { AgentOverrides } from "./lib/agent-overrides.ts";
 export { listAvailableAgents, callNamedAgent, clearSession } from "./named-agents.ts";
 
 const skillMiddleware = createSkillMiddleware("./skills");
@@ -31,14 +33,11 @@ const executerSystemPrompt = readFileSync("./prompts/executer-system.md", "utf-8
 // docs/superpowers/specs/2026-09-08-multi-device-support-design.md).
 const defaultAgents = new Map<string, ReturnType<typeof createAgent>>();
 
-function getDefaultAgent(deviceName: string): ReturnType<typeof createAgent> {
-    const cached = defaultAgents.get(deviceName);
-    if (cached) return cached;
-
-    const agent = createAgent({
-        model: model,
-        tools: sharedTools,
-        checkpointer: sharedCheckpointer,
+export function buildDefaultAgent(deviceName: string, o: AgentOverrides = {}): ReturnType<typeof createAgent> {
+    return createAgent({
+        model: o.model ?? model,
+        tools: o.tools ?? sharedTools,
+        checkpointer: o.checkpointer ?? sharedCheckpointer,
         systemPrompt: new SystemMessage(executerSystemPrompt),
 
         // agentDelegationMiddleware only goes on the default agent — named
@@ -48,8 +47,7 @@ function getDefaultAgent(deviceName: string): ReturnType<typeof createAgent> {
             skillMiddleware,
             createMemoryMiddleware(`devices/${deviceName}/memory`),
             datetimeMiddleware,
-            agentDelegationMiddleware,
-            visionRoutingMiddleware,
+            ...(o.replay ? [] : [agentDelegationMiddleware, visionRoutingMiddleware]),
             logModelCallMiddleware,
             messageTypeTraceMiddleware,
             agentLogsMiddleware,
@@ -60,13 +58,19 @@ function getDefaultAgent(deviceName: string): ReturnType<typeof createAgent> {
             toolErrorMiddleware,
         ],
     });
+}
+
+function getDefaultAgent(deviceName: string): ReturnType<typeof createAgent> {
+    const cached = defaultAgents.get(deviceName);
+    if (cached) return cached;
+    const agent = buildDefaultAgent(deviceName);
     defaultAgents.set(deviceName, agent);
     return agent;
 }
 
 export function callAgent(deviceName: string, content: MessageContent, localThreadId: string, opts?: { recursionLimit?: number }): Promise<string> {
     return loggedTurn(
-        { device: deviceName, chatId: localThreadId, threadId: `device:${deviceName}:${localThreadId}`, agent: "default", model: process.env.ANTHROPIC_MODEL, userMessage: content },
+        { device: deviceName, chatId: localThreadId, threadId: `device:${deviceName}:${localThreadId}`, agent: "default", model: process.env.ANTHROPIC_MODEL, reasoningModel: reasoningModelName(), userMessage: content },
         () => runDefaultAgent(deviceName, content, localThreadId, opts),
         RECURSION_LIMIT_REPLY
     );

@@ -6,12 +6,12 @@ const stubs = { NuxtLink: { props: ['to'], template: '<a :href="to"><slot /></a>
 afterEach(cleanup)
 
 describe('home page', () => {
-  it('has a heading and a labelled navigation with the three tools', () => {
+  it('has a heading and a labelled navigation with the tools', () => {
     render(Home, { global: { stubs } })
     expect(screen.getByRole('heading', { level: 1 }).textContent).toBe('Agents Voice')
     const nav = within(screen.getByRole('navigation', { name: 'Tools' }))
     const links = nav.getAllByRole('link')
-    expect(links.map((a) => a.getAttribute('href'))).toEqual(['/tts', '/connect', '/logs'])
+    expect(links.map((a) => a.getAttribute('href'))).toEqual(['/tts', '/connect', '/models', '/logs'])
   })
 
   it('gives each link an accessible name and description', () => {

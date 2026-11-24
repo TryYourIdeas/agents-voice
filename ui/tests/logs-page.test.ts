@@ -3,7 +3,7 @@ import { render, screen, waitFor, within, cleanup } from '@testing-library/vue'
 import userEvent from '@testing-library/user-event'
 import Logs from '../pages/logs.vue'
 
-const stubs = { NuxtLink: { template: '<a><slot /></a>' } }
+const stubs = { NuxtLink: { props: ['to'], template: '<a :href="to"><slot /></a>' } }
 const stats = {
   totals: { turns: 2, errors: 1, recursion_limits: 0, avg_duration_ms: 150, input_tokens: 135907, output_tokens: 13739 },
   agents: [{ agent: 'default' }, { agent: 'mail' }],
@@ -31,6 +31,26 @@ beforeEach(() => {
     throw new Error('unexpected ' + url)
   })
   vi.stubGlobal('$fetch', fetchMock)
+})
+
+describe('logs page replay', () => {
+  it('shows the Reasoning Model column, a Replay of link and a Replay link per row', async () => {
+    fetchMock.mockImplementation(async (url: string) => {
+      if (url === '/api/logs/stats') return stats
+      if (url === '/api/logs/turns') return { total: 2, turns: [row({ id: 5, reasoning_model: 'Qwen3.5-4B', replay_of: 2, user_message: 'again' }), row({ id: 2, reasoning_model: 'LFM3-1.7B', user_message: 'check mail' })] }
+      if (url === '/api/logs/turns/2') return detail
+      throw new Error('unexpected ' + url)
+    })
+    const user = userEvent.setup()
+    render(Logs, { global: { stubs } })
+    expect(await screen.findByText('again')).toBeTruthy()
+    expect(screen.getByRole('columnheader', { name: 'Reasoning model' })).toBeTruthy()
+    expect(screen.getByText('Qwen3.5-4B')).toBeTruthy()
+    expect(screen.getByText('LFM3-1.7B')).toBeTruthy()
+    expect(screen.getByRole('link', { name: 'Replay turn 2' }).getAttribute('href')).toBe('/replay/2')
+    await user.click(screen.getByRole('button', { name: 'Open original turn 2' }))
+    await waitFor(() => expect(fetchMock.mock.calls.some((c) => c[0] === '/api/logs/turns/2')).toBe(true))
+  })
 })
 
 describe('logs page', () => {

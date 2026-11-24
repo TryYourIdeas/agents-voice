@@ -141,6 +141,7 @@ docker compose -f docker-compose-whatsap.yml down
 | `NUXT_WHATSAP_API_URL` | `WHATSAP_API_URL` | `http://localhost:4001` | Reaches `whatsap`'s internal API (Docker service DNS: `http://whatsap:4001`) |
 | `NUXT_NEW_DEVICES_DIR` | `NEW_DEVICES_DIR` | `/data/new-devices` (Docker) / `../whatsap/new-devices` (local) | Shared drop directory with `whatsap`'s onboarding poller — see `whatsap/device-onboarding.ts` |
 | `NUXT_AGENT_LOGS_DB` | `AGENT_LOGS_DB` | `/data/logs/agent-logs.db` (Docker) / `../logs/agent-logs.db` (local) | Agent log SQLite database shown by `/logs` (opened read-only) |
+| `NUXT_MODEL_CONFIGS_DB` | `MODEL_CONFIGS_DB` | `/data/logs/model-configs.db` (Docker) / `../logs/model-configs.db` (local) | SQLite file holding the model configurations of `/models` (read-write; API keys stored in plain text, never sent to the browser) |
 
 #### `plantuml-renderer` env vars
 
@@ -342,3 +343,13 @@ Three standalone Compose files run the WhatsApp bot on the
 |---|---|---|
 | `TOOL_CALL_BUDGET` | 40% of `AGENT_RECURSION_LIMIT` (24 when it is 60) | Tool calls one chat request may make before the agent must answer with what it has |
 | `SCHEDULED_TOOL_CALL_BUDGET` | 40% of `SCHEDULED_RECURSION_LIMIT` | Same, for scheduled tasks |
+
+
+## Log replay (`whatsap` bot)
+
+| Variable | Default | Purpose |
+|---|---|---|
+| `REASONING_MODEL_NAME` | `ANTHROPIC_MODEL` | Real model name written to each log row's **Reasoning Model** field. `ANTHROPIC_MODEL` is only a placeholder (`not-necessary`) when the agent talks to llama-server, so set this to the model llama-server actually serves. |
+| `MODEL_CONFIGS_DB` | `../logs/model-configs.db` | Model configurations written by the UI's `/models` page; the bot reads the chosen one (model, base URL, API key) when a replay starts. In Docker both containers mount `./logs` at `/data/logs`. |
+
+`model-configs.db` contains API keys in plain text, like `.env`: keep `logs/` git-ignored and private.

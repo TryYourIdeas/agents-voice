@@ -13,6 +13,8 @@ const toolCalls = (e: Record<string, any>) => (e.data && Array.isArray(e.data.to
     <header class="turn-head">
       <strong>#{{ props.turn.id }} · {{ props.turn.agent }}</strong>
       <span class="badge" :class="`st-${props.turn.status}`">{{ props.turn.status }}</span>
+      <span v-if="props.turn.reasoning_model" class="muted" data-testid="turn-model">model {{ props.turn.reasoning_model }}</span>
+      <span v-if="props.turn.replay_of" class="muted">replay of #{{ props.turn.replay_of }}</span>
       <span class="muted">{{ props.turn.source }} · {{ props.turn.duration_ms ?? '?' }} ms · {{ props.turn.started_at }}</span>
       <span v-if="props.turn.tokens" class="muted" data-testid="turn-tokens">
         tokens in {{ fmt(props.turn.tokens.input_tokens) }} / out {{ fmt(props.turn.tokens.output_tokens) }}<template

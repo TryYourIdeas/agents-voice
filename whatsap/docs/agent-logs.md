@@ -46,3 +46,16 @@ model step (with its tokens), tool call/result and nested sub-agent turn. API: `
 (default `../logs/agent-logs.db`, relative to `ui/`; in `docker-compose.yml` it is `/data/logs/agent-logs.db`).
 Local run: `cd ui && npm run dev`. **The UI has no authentication**: anyone who can reach port 3000 can read the
 logged chats and emails, so do not expose it beyond your machine/network.
+
+
+## Replay columns and tables
+
+`turns.reasoning_model` — the real model name (`REASONING_MODEL_NAME`, falling back to `ANTHROPIC_MODEL`; the config's model for replays). `turns.replay_of` — id of the turn a replay re-ran. Both are added with `ALTER TABLE` when an older DB is opened.
+
+A replay stores its sandbox state, keyed by the replay turn's id:
+
+| Table | Columns |
+|---|---|
+| `replay_messages` | `turn_id, seq, ts, kind (reply\|audio), text` |
+| `replay_files` | `turn_id, path, content, origin (seeded\|written)` |
+| `replay_emails` | `turn_id, folder (inbox\|sent), uid, from_addr, to_addr, subject, date, body, in_reply_to_uid` |
