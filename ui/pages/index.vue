@@ -3,6 +3,7 @@
 const links = [
   { to: '/tts', title: 'Text to speech & transcription', text: 'Type text and hear it spoken, clone voices, or transcribe audio with Whisper or Qwen.' },
   { to: '/connect', title: 'Connect devices', text: 'Add WhatsApp devices, scan QR codes to pair them, and reconnect disconnected ones.' },
+  { to: '/models', title: 'Model configurations', text: 'Configure the reasoning models (name, base URL, API key) that logged turns can be replayed with.' },
   { to: '/logs', title: 'Agent logs', text: 'Review user messages, agent and sub-agent replies and tool results recorded by the bot.' },
 ]
 </script>

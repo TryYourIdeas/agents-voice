@@ -14,5 +14,8 @@ export default defineNuxtConfig({
     whatsapApiUrl: process.env.WHATSAP_API_URL || 'http://localhost:4001',
     newDevicesDir: process.env.NEW_DEVICES_DIR || '../whatsap/new-devices',
     agentLogsDb: process.env.AGENT_LOGS_DB || '../logs/agent-logs.db',
+    // Model configurations for log replays (read-write, owned by the UI; the bot reads it by id).
+    // Override at runtime with NUXT_MODEL_CONFIGS_DB.
+    modelConfigsDb: process.env.MODEL_CONFIGS_DB || '../logs/model-configs.db',
   },
 })
