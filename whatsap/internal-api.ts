@@ -19,6 +19,7 @@ import { createServer } from "node:http";
 import QRCode from "qrcode";
 import { listDeviceNames, readDevice } from "./lib/devices.ts";
 import { getDeviceStatus } from "./lib/device-status.ts";
+import { handleReplayRequest } from "./lib/replay/api.ts";
 
 const PORT = process.env.INTERNAL_API_PORT ? Number(process.env.INTERNAL_API_PORT) : 4001;
 const DEVICE_NAME_IN_PATH_RE = /^\/api\/devices\/([a-z0-9-]+)\/qr\.png$/;
@@ -42,6 +43,20 @@ export function startInternalApi(reconnectDevice: (name: string) => Promise<bool
         if (req.method === "GET" && url.pathname === "/api/devices") {
             res.writeHead(200, { "Content-Type": "application/json" });
             res.end(JSON.stringify(listDevicesWithStatus()));
+            return;
+        }
+
+        // Starts a sandboxed replay of a logged turn with a configured model (see lib/replay/). Answers 202 with
+        // the new turn's id right away; the run continues in the background and the UI polls the log DB.
+        if (req.method === "POST" && url.pathname === "/api/replay") {
+            let raw = "";
+            for await (const chunk of req) {
+                raw += chunk;
+                if (raw.length > 10_000) break;
+            }
+            const r = await handleReplayRequest(raw);
+            res.writeHead(r.status, { "Content-Type": "application/json" });
+            res.end(JSON.stringify(r.body));
             return;
         }
 

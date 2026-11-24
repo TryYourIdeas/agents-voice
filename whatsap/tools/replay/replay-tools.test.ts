@@ -102,3 +102,15 @@ describe("replay mail, chat and other tools", () => {
         expect(new Set(names).size).toBe(names.length);
     });
 });
+
+describe("replayResearchSink", () => {
+    it("stores web-search results in the sandbox instead of the device directory", async () => {
+        const { replayResearchSink } = await import("./web-search.ts");
+        const sb = new Sandbox();
+        const sink = replayResearchSink(sb);
+        sink({ query: "q", topic: "general" }, { results: [] });
+        const paths = [...sb.files.keys()];
+        expect(paths.some((p) => p.startsWith("research/") && p.endsWith("_results.json"))).toBe(true);
+        expect(paths.some((p) => p.endsWith("_query.json"))).toBe(true);
+    });
+});
