@@ -10,7 +10,7 @@ The owner wants to see how another reasoning model would have handled a logged i
 - The sandbox starts from what the original run saw, rebuilt from its logged tool results (rejected: a copy of the live device folder and inbox — copies private data; an empty sandbox — needs manual fixtures).
 - Sandbox state is stored in the logs DB (`replay_*` tables) and read by the UI read-only; the UI starts a replay through the bot's internal API (`POST /api/replay`).
 - Model configurations live in `logs/model-configs.db`, written by the UI, read by the bot by id; API keys are plain text at rest and never returned to the browser.
-- Delegation to named agents, vision routing, `execute_bash` and scheduled tasks are excluded from replays; `web_search` writes its research files to the sandbox.
+- Delegation to named agents works in replays through an injected runner (`createAgentDelegationMiddleware`, `lib/replay/delegate.ts`): the named agent keeps its own `agent.md` prompt, skills and allowed-tools but runs with the replay model and the mock tools, over the shared sandbox, logged as a child turn. Vision routing, `execute_bash`, scheduled tasks and the post pipeline are excluded; `web_search` writes its research files to the sandbox. A test checks every named agent's allowed-tools exist in a replay.
 
 ## Consequences
-Replays are safe by construction but not perfectly faithful (text only, no delegation, seeds limited to what was logged and not truncated). Adding a new stateful tool means adding its mock to `tools/replay/` or it is absent from replays.
+Replays are safe by construction but not perfectly faithful (text only, seeds limited to what was logged and not truncated). Adding a new stateful tool means adding its mock to `tools/replay/` or it is absent from replays.

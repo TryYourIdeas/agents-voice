@@ -8,7 +8,7 @@ import { model, visionModel, sharedTools, sharedCheckpointer } from "./shared.ts
 import { createVisionRoutingMiddleware } from "./lib/vision-routing.ts";
 import { datetimeMiddleware } from "./middleware/datetime-middleware.ts";
 import { createMemoryMiddleware } from "./middleware/memory-middleware.ts";
-import { agentDelegationMiddleware } from "./middleware/agent-delegation-middleware.ts";
+import { agentDelegationMiddleware, createAgentDelegationMiddleware } from "./middleware/agent-delegation-middleware.ts";
 import { agentLogsMiddleware } from "./middleware/agent-logs-middleware.ts";
 import { fetchUrlGuardMiddleware } from "./middleware/fetch-url-guard-middleware.ts";
 import { toolBudgetMiddleware } from "./middleware/tool-budget-middleware.ts";
@@ -47,7 +47,7 @@ export function buildDefaultAgent(deviceName: string, o: AgentOverrides = {}): R
             skillMiddleware,
             createMemoryMiddleware(`devices/${deviceName}/memory`),
             datetimeMiddleware,
-            ...(o.replay ? [] : [agentDelegationMiddleware, visionRoutingMiddleware]),
+            ...(o.replay ? (o.delegate ? [createAgentDelegationMiddleware(o.delegate)] : []) : [agentDelegationMiddleware, visionRoutingMiddleware]),
             logModelCallMiddleware,
             messageTypeTraceMiddleware,
             agentLogsMiddleware,

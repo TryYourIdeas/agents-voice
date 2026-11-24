@@ -9,6 +9,7 @@ const real = {
     webSearch: tool(async () => "web", { name: "web_search", description: "d", schema: z.object({}) }),
     fetchUrl: tool(async () => "fetch", { name: "fetch_url", description: "d", schema: z.object({}) }),
     getCurrentDatetime: tool(async () => "now", { name: "get_current_datetime", description: "d", schema: z.object({}) }),
+    listAvailableAgents: tool(async () => "- mail: reads mail", { name: "list_available_agents", description: "d", schema: z.object({}) }),
 };
 function setup() {
     const sb = new Sandbox();
@@ -41,8 +42,8 @@ describe("replay file tools", () => {
         sb.files.set("docs/a.txt", "1");
         await call("my_write_file", { file_path: "docs/sub/b.txt", content: "2" });
         await call("my_write_file", { file_path: "top.txt", content: "3" });
-        expect(await call("my_list_directory", { directoryPath: "docs" })).toEqual(expect.stringContaining("a.txt"));
-        const out = JSON.parse(await call("my_list_directory", { directoryPath: "docs" }));
+        expect(await call("list_directory", { directoryPath: "docs" })).toEqual(expect.stringContaining("a.txt"));
+        const out = JSON.parse(await call("list_directory", { directoryPath: "docs" }));
         expect(out).toEqual(["a.txt", "sub"]);
     });
     it("check_directory_exists and create_directory work on the sandbox", async () => {
@@ -88,6 +89,12 @@ describe("replay mail, chat and other tools", () => {
         await call("send_audio", { text: "hello" });
         expect(sb.messages[0]).toMatchObject({ kind: "audio", text: "hello" });
     });
+    it("post_queue_prompt stores the prompt in the sandbox and post_run_pipeline is disabled", async () => {
+        const { sb, call } = setup();
+        expect(await call("post_queue_prompt", { name: "ai news", prompt: "write about X" })).toMatch(/Queued/);
+        expect(sb.files.get("generate-posts/pending/ai news.md")).toBe("write about X");
+        expect(await call("post_run_pipeline", {})).toMatch(/disabled in replay/i);
+    });
     it("scheduled-task tools answer 'disabled in replay'", async () => {
         const { call } = setup();
         expect(await call("list_scheduled_tasks", {})).toMatch(/disabled in replay/i);
@@ -98,7 +105,7 @@ describe("replay mail, chat and other tools", () => {
         const { tools } = setup();
         const names = tools.map((t: any) => t.name);
         expect(names).not.toContain("execute_bash");
-        expect(names).toEqual(expect.arrayContaining(["web_search", "fetch_url", "get_current_datetime", "get_current_chat", "render_diagram"]));
+        expect(names).toEqual(expect.arrayContaining(["web_search", "fetch_url", "get_current_datetime", "get_current_chat", "render_diagram", "list_available_agents", "post_queue_prompt", "post_run_pipeline"]));
         expect(new Set(names).size).toBe(names.length);
     });
 });

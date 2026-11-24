@@ -8,6 +8,7 @@ import { openLogsDb, loggedTurn, currentTurnId } from "../agent-logs.ts";
 import { getModelConfig, effectiveApiKey, type ModelConfig } from "../model-configs.ts";
 import { Sandbox } from "./sandbox.ts";
 import { seedFromEvents, type SeedEvent } from "./seed.ts";
+import { createReplayDelegate } from "./delegate.ts";
 
 export class ReplayError extends Error {
     status: number;
@@ -55,17 +56,31 @@ async function defaultBuildAgent({ agentName, device, config, sandbox }: Paramet
         maxTokens: process.env.MAX_TOKENS ? Number(process.env.MAX_TOKENS) : undefined,
         streaming: true,
     });
-    const tools = createReplayTools(sandbox, { webSearch: createReplayWebSearch(sandbox) as any, fetchUrl: fetchUrlTool as any, getCurrentDatetime: getCurrentDatetimeTool as any });
-    const o = { model, tools, checkpointer: new MemorySaver(), replay: true };
-    return agentName === "default" ? agent.buildDefaultAgent(device, o) : named.buildNamedAgent(device, agentName, o);
+    const tools = createReplayTools(sandbox, {
+        webSearch: createReplayWebSearch(sandbox) as any,
+        fetchUrl: fetchUrlTool as any,
+        getCurrentDatetime: getCurrentDatetimeTool as any,
+        listAvailableAgents: named.listAvailableAgentsTool as any,
+    });
+    const checkpointer = new MemorySaver();
+    const o = { model, tools, checkpointer, replay: true };
+    if (agentName !== "default") return named.buildNamedAgent(device, agentName, o);
+    // The default agent may delegate to named agents: they run with the same replay model, their own prompt
+    // and allowed tools, over the same mock tools and sandbox, logged as child turns of the replay.
+    const delegate = createReplayDelegate({
+        reasoningModel: config.model,
+        buildAgent: async (name) => named.buildNamedAgent(device, name, o),
+        invoke: (ctx) => invokeAgent(ctx.agent, ctx.message, ctx.threadId),
+    });
+    return agent.buildDefaultAgent(device, { ...o, delegate });
 }
 
-async function defaultInvoke(ctx: ReplayContext): Promise<string> {
+async function invokeAgent(agent: any, message: string, threadId: string): Promise<string> {
     const [{ HumanMessage }, util] = await Promise.all([import("@langchain/core/messages"), import("../../util.ts")]);
     try {
-        const result = await ctx.agent.invoke(
-            { messages: [new HumanMessage(ctx.message)] },
-            { recursionLimit: util.agentRecursionLimit(), configurable: { thread_id: ctx.threadId } }
+        const result = await agent.invoke(
+            { messages: [new HumanMessage(message)] },
+            { recursionLimit: util.agentRecursionLimit(), configurable: { thread_id: threadId } }
         );
         return util.extractText(result.messages[result.messages.length - 1].content);
     } catch (err) {
@@ -73,6 +88,8 @@ async function defaultInvoke(ctx: ReplayContext): Promise<string> {
         return util.RECURSION_LIMIT_REPLY;
     }
 }
+
+const defaultInvoke = (ctx: ReplayContext) => invokeAgent(ctx.agent, ctx.message, ctx.threadId);
 
 function treeEvents(originalId: number): SeedEvent[] {
     const d = openLogsDb()!;

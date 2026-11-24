@@ -8,12 +8,15 @@ import { tool, type StructuredTool } from "langchain";
 import { z } from "zod";
 import type { Sandbox } from "../../lib/replay/sandbox.ts";
 
+const DISABLED_PIPELINE = "This action is disabled in replay: the post pipeline would generate images and publish a draft article for real.";
 const DISABLED = "This action is disabled in replay: the run happens in a sandbox and cannot schedule tasks.";
 
 export interface RealReadOnlyTools {
     webSearch: StructuredTool;
     fetchUrl: StructuredTool;
     getCurrentDatetime: StructuredTool;
+    /** read-only: lists the configured named agents */
+    listAvailableAgents?: StructuredTool;
 }
 
 /** Runs a sandbox file operation; a path error becomes the tool's text result, like the real tools' errors. */
@@ -76,7 +79,7 @@ export function createReplayTools(sb: Sandbox, real: RealReadOnlyTools): Structu
                 return JSON.stringify(children(sb, dir));
             }),
         {
-            name: "my_list_directory",
+            name: "list_directory",
             description: "Lists all files in a given directory, relative to this device's own directory.",
             schema: z.object({ directoryPath: z.string() }),
         }
@@ -182,12 +185,32 @@ export function createReplayTools(sb: Sandbox, real: RealReadOnlyTools): Structu
             body: z.string(),
         }),
     });
+    const postQueuePrompt = tool(
+        async ({ name, prompt }) =>
+            guarded(() => {
+                const n = name.trim().replace(/[\\/]/g, "-");
+                sb.files.set(sb.normalizePath(`generate-posts/pending/${n}.md`), prompt);
+                return `Queued prompt '${n}' (generate-posts/pending/${n}.md). Call post_run_pipeline to generate it.`;
+            }),
+        {
+            name: "post_queue_prompt",
+            description: "Save the raw prompt for a post-with-image in the generate-posts queue.",
+            schema: z.object({ name: z.string(), prompt: z.string() }),
+        }
+    );
+    const postRunPipeline = tool(async () => DISABLED_PIPELINE, {
+        name: "post_run_pipeline",
+        description: "Run the generate-posts pipeline on the queued prompt.",
+        schema: z.object({ publish: z.boolean().optional() }),
+    });
     const listScheduled = tool(async () => DISABLED, { name: "list_scheduled_tasks", description: "List scheduled tasks.", schema: z.object({}) });
     const cancelScheduled = tool(async () => DISABLED, { name: "cancel_scheduled_task", description: "Cancel a scheduled task.", schema: z.object({ name: z.string() }) });
 
     return [
         readFile, writeFile, listDirectory, checkDirectoryExists, createDirectory, downloadFile, sendAudio,
         getNewEmails, draftEmail, renderDiagram, getCurrentChat, createScheduled, listScheduled, cancelScheduled,
+        postQueuePrompt, postRunPipeline,
         real.webSearch, real.fetchUrl, real.getCurrentDatetime,
+        ...(real.listAvailableAgents ? [real.listAvailableAgents] : []),
     ] as StructuredTool[];
 }
