@@ -1,7 +1,7 @@
 // @vitest-environment node
 import { describe, it, expect, beforeEach } from 'vitest'
 import { DatabaseSync } from 'node:sqlite'
-import { listTurns, getTurn, getStats, PREVIEW_CHARS, MAX_LIMIT } from '../server/utils/agent-logs-db'
+import { listTurns, getTurn, getStats, getSandbox, PREVIEW_CHARS, MAX_LIMIT } from '../server/utils/agent-logs-db'
 
 // Same schema as whatsap/lib/agent-logs.ts
 const SCHEMA = `
@@ -124,5 +124,41 @@ describe('getStats', () => {
   })
   it('works on an empty database', () => {
     expect(getStats(db).totals.turns).toBe(0)
+  })
+})
+
+describe('replay columns', () => {
+  it('works against an old DB without reasoning_model / replay_of', () => {
+    const id = turn({})
+    const t = listTurns(db).turns.find((x) => x.id === id)!
+    expect(t.reasoning_model).toBeNull()
+    expect(t.replay_of).toBeNull()
+  })
+  it('returns reasoning_model and replay_of when the columns exist', () => {
+    db.exec('ALTER TABLE turns ADD COLUMN reasoning_model TEXT; ALTER TABLE turns ADD COLUMN replay_of INTEGER')
+    const orig = turn({ user: 'q' })
+    const rep = turn({ user: 'q' })
+    db.prepare('UPDATE turns SET reasoning_model = ?, replay_of = ? WHERE id = ?').run('LFM3-1.7B', orig, rep)
+    const t = listTurns(db).turns.find((x) => x.id === rep)!
+    expect(t).toMatchObject({ reasoning_model: 'LFM3-1.7B', replay_of: orig })
+  })
+})
+
+describe('getSandbox', () => {
+  it('returns empty arrays when the sandbox tables do not exist (old DB)', () => {
+    expect(getSandbox(db, 1)).toEqual({ files: [], inbox: [], sent: [], messages: [] })
+  })
+  it('returns files, emails and messages of the turn', () => {
+    db.exec(`CREATE TABLE replay_messages (turn_id INTEGER, seq INTEGER, ts TEXT, kind TEXT, text TEXT);
+      CREATE TABLE replay_files (turn_id INTEGER, path TEXT, content TEXT, origin TEXT);
+      CREATE TABLE replay_emails (turn_id INTEGER, folder TEXT, uid INTEGER, from_addr TEXT, to_addr TEXT, subject TEXT, date TEXT, body TEXT, in_reply_to_uid INTEGER);`)
+    db.prepare("INSERT INTO replay_files VALUES (5, 'b.txt', 'B', 'written'), (5, 'a.txt', 'A', 'seeded'), (6, 'z', 'Z', 'seeded')").run()
+    db.prepare("INSERT INTO replay_emails VALUES (5, 'inbox', 1, 'x@y', 'me', 'S', 'd', 'body', NULL), (5, 'sent', 1, 'me', 'x@y', 'Re: S', NULL, 'r', 1)").run()
+    db.prepare("INSERT INTO replay_messages VALUES (5, 1, 't', 'reply', 'hello')").run()
+    const s = getSandbox(db, 5)
+    expect(s.files).toEqual([{ path: 'a.txt', content: 'A', origin: 'seeded' }, { path: 'b.txt', content: 'B', origin: 'written' }])
+    expect(s.inbox).toEqual([{ uid: 1, from: 'x@y', to: 'me', subject: 'S', date: 'd', body: 'body', inReplyToUid: null }])
+    expect(s.sent[0]).toMatchObject({ uid: 1, subject: 'Re: S', inReplyToUid: 1 })
+    expect(s.messages).toEqual([{ seq: 1, kind: 'reply', text: 'hello', ts: 't' }])
   })
 })

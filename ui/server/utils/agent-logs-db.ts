@@ -52,6 +52,18 @@ const preview = (s: string | null) => (s && s.length > PREVIEW_CHARS ? s.slice(0
 // ids of a turn and all of its sub-agent turns, so a row's tokens cover the whole interaction
 const TREE_IDS = `(WITH RECURSIVE d(id) AS (SELECT t.id UNION ALL SELECT c.id FROM turns c JOIN d ON c.parent_turn_id = d.id) SELECT id FROM d)`
 
+// Logs written before replays existed lack turns.reasoning_model / turns.replay_of (and the replay_* tables).
+const colCache = new WeakMap<DatabaseSync, Set<string>>()
+function turnColumns(db: DatabaseSync): Set<string> {
+  let c = colCache.get(db)
+  // not cached while the columns are missing: the bot may add them while the UI is running
+  if (!c || !c.has('reasoning_model')) {
+    c = new Set((db.prepare('PRAGMA table_info(turns)').all() as { name: string }[]).map((r) => r.name))
+    colCache.set(db, c)
+  }
+  return c
+}
+
 export function listTurns(db: DatabaseSync, f: TurnFilters = {}) {
   const where: string[] = []
   const params: (string | number)[] = []
@@ -68,9 +80,12 @@ export function listTurns(db: DatabaseSync, f: TurnFilters = {}) {
   const offset = clamp(f.offset, 0, Number.MAX_SAFE_INTEGER, 0)
 
   const total = (db.prepare(`SELECT count(*) AS n FROM turns t ${w}`).get(...params) as { n: number }).n
+  const cols = turnColumns(db)
+  const reasoning = cols.has('reasoning_model') ? 't.reasoning_model' : 'NULL AS reasoning_model'
+  const replayOf = cols.has('replay_of') ? 't.replay_of' : 'NULL AS replay_of'
   const rows = db
     .prepare(
-      `SELECT t.id, t.parent_turn_id, t.started_at, t.duration_ms, t.device, t.chat_id, t.agent, t.source, t.status,
+      `SELECT t.id, t.parent_turn_id, ${reasoning}, ${replayOf}, t.started_at, t.duration_ms, t.device, t.chat_id, t.agent, t.source, t.status,
               t.user_message, t.final_response, t.error,
               (SELECT count(*) FROM turns c WHERE c.parent_turn_id = t.id) AS sub_agent_turns,
               (SELECT count(*) FROM events e WHERE e.turn_id = t.id AND e.kind = 'tool') AS tool_calls,
@@ -157,4 +172,31 @@ export function getStats(db: DatabaseSync) {
                 FROM events WHERE kind = 'model'`)
     .get() as Record<string, number | null>
   return { totals: { ...totals, input_tokens: grand.input_tokens ?? 0, output_tokens: grand.output_tokens ?? 0 }, agents, tools, tokens }
+}
+
+export interface SandboxEmailRow { uid: number; from: string; to: string; subject: string; date: string | null; body: string; inReplyToUid: number | null }
+export interface Sandbox {
+  files: { path: string; content: string; origin: string }[]
+  inbox: SandboxEmailRow[]
+  sent: SandboxEmailRow[]
+  messages: { seq: number; kind: string; text: string; ts: string }[]
+}
+
+/** Mock chat / files / mailbox a replay ended up with. Empty (not an error) for logs without the replay tables. */
+export function getSandbox(db: DatabaseSync, turnId: number): Sandbox {
+  const out: Sandbox = { files: [], inbox: [], sent: [], messages: [] }
+  try {
+    out.files = db.prepare('SELECT path, content, origin FROM replay_files WHERE turn_id = ? ORDER BY path').all(turnId) as any
+    const mail = db
+      .prepare('SELECT folder, uid, from_addr, to_addr, subject, date, body, in_reply_to_uid FROM replay_emails WHERE turn_id = ? ORDER BY folder, uid')
+      .all(turnId) as any[]
+    for (const m of mail) {
+      const e = { uid: m.uid, from: m.from_addr, to: m.to_addr, subject: m.subject, date: m.date, body: m.body, inReplyToUid: m.in_reply_to_uid }
+      ;(m.folder === 'sent' ? out.sent : out.inbox).push(e)
+    }
+    out.messages = db.prepare('SELECT seq, kind, text, ts FROM replay_messages WHERE turn_id = ? ORDER BY seq').all(turnId) as any
+  } catch {
+    // table missing: an old log DB
+  }
+  return out
 }

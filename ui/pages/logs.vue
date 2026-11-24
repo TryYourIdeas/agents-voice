@@ -65,6 +65,7 @@ onMounted(() => { loadStats(); loadTurns() })
       <h1>Agent logs</h1>
       <NuxtLink to="/">← Home</NuxtLink>
       <NuxtLink to="/connect">Connect devices</NuxtLink>
+      <NuxtLink to="/models">Model configurations</NuxtLink>
       <button type="button" @click="loadStats(); loadTurns()">Refresh</button>
     </header>
 
@@ -109,20 +110,25 @@ onMounted(() => { loadStats(); loadTurns() })
     </form>
 
     <table class="turns" aria-label="Turns">
-      <thead><tr><th>#</th><th>When</th><th>Agent</th><th>Status</th><th>User message</th><th>Reply</th><th>Tools</th><th>Tokens in / out</th><th>ms</th></tr></thead>
+      <thead><tr><th>#</th><th>When</th><th>Agent</th><th>Reasoning model</th><th>Status</th><th>User message</th><th>Reply</th><th>Tools</th><th>Tokens in / out</th><th>ms</th><th><span class="sr-only">Replay</span></th></tr></thead>
       <tbody>
         <tr v-for="t in turns" :key="t.id" :class="{ active: selected?.id === t.id }">
           <td><button type="button" class="link" :aria-label="`Open turn ${t.id}`" @click="open(t.id)">{{ t.id }}</button></td>
           <td class="nowrap">{{ t.started_at }}</td>
           <td>{{ t.agent }}<span v-if="t.sub_agent_turns" class="muted"> +{{ t.sub_agent_turns }} sub</span></td>
-          <td><span class="badge" :class="`st-${t.status}`">{{ t.status }}</span></td>
+          <td class="nowrap">{{ t.reasoning_model || '—' }}</td>
+          <td>
+            <span class="badge" :class="`st-${t.status}`">{{ t.status }}</span>
+            <button v-if="t.replay_of" type="button" class="link replay-of" :aria-label="`Open original turn ${t.replay_of}`" @click="open(t.replay_of)">Replay of #{{ t.replay_of }}</button>
+          </td>
           <td class="clip">{{ t.user_message }}</td>
           <td class="clip">{{ t.final_response || t.error }}</td>
           <td>{{ t.tool_calls }}</td>
           <td class="nowrap">{{ fmt(t.input_tokens) }} / {{ fmt(t.output_tokens) }}</td>
           <td>{{ t.duration_ms }}</td>
+          <td><NuxtLink :to="`/replay/${t.id}`" :aria-label="`Replay turn ${t.id}`">Replay</NuxtLink></td>
         </tr>
-        <tr v-if="!turns.length && !loading"><td colspan="9" class="muted">No turns found.</td></tr>
+        <tr v-if="!turns.length && !loading"><td colspan="11" class="muted">No turns found.</td></tr>
       </tbody>
     </table>
 
@@ -166,5 +172,7 @@ th { color: #9a9ab0; font-weight: 600; }
 .badge { background: #25253a; border-radius: 999px; padding: 0.1rem 0.6rem; font-size: 0.75rem; }
 .st-ok { background: #1f3a2b; } .st-error { background: #4a2020; } .st-recursion_limit { background: #4a3a1a; }
 .pager { display: flex; gap: 1rem; align-items: center; justify-content: center; margin: 1rem 0; }
+.sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+.replay-of { display: block; font-size: 0.75rem; }
 .detail { margin-top: 1rem; } .close { float: right; }
 </style>
