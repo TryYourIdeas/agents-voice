@@ -254,3 +254,33 @@ sequenceDiagram
     S-->>P: {reply}
     P-->>U: Render reply
 ```
+
+
+## Replaying a logged turn with another model
+
+1. Open **http://localhost:3000/models**, click **Add**, fill in *Name*, *Model name*, *Base URL* (for a llama-server container: `http://llama-server:5050`) and, if the server needs one, *API key*. Save. Use **Edit** to change a configuration later (leave *API key* blank to keep it).
+2. Open **/logs**. Every row has a **Reasoning model** column and a **Replay** link.
+3. Click **Replay** on the turn you want to re-run. The replay page shows the original message.
+4. Choose a model configuration and click **Run replay**. The page updates by itself while the status is `running`.
+5. When it finishes, read the answer in **Messages**; click a file in **Files** to see its contents; click an email in **Inbox** or **Sent** to read it. Nothing in this sandbox exists outside the replay.
+6. The replay appears in `/logs` as a new turn with **Replay of #N** pointing at the original, so you can compare the two answers.
+
+```mermaid
+sequenceDiagram
+    participant U as /replay page
+    participant N as ui (Nitro)
+    participant B as whatsap bot
+    participant M as chosen model
+    participant D as logs DB
+    U->>N: POST /api/replay {turnId, modelConfigId}
+    N->>B: proxy POST /api/replay
+    B->>D: read original turn + tool events, create replay turn
+    B-->>U: 202 {replayTurnId}
+    B->>M: run agent with mock tools (sandbox seeded from the log)
+    M-->>B: answer
+    B->>D: finish turn, store sandbox chat/files/emails
+    loop every 1.5 s until status != running
+        U->>N: GET /api/logs/turns/:id and /sandbox
+        N->>D: read-only queries
+    end
+```

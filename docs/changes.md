@@ -202,3 +202,7 @@ The agent read `logs.txt` (~25 MB) whole while looking for text to summarise, pr
 ## 2026-11-08 — Kokoro-82M TTS stack
 
 New `kokoro-tts/` service (FastAPI, `hexgrad/Kokoro-82M` v1.0) exposing the same `/tts` contract as `lfm3-audio`, and `whatsap-lfm3-stt-tts-vision-kokoro-docker-compose.yml` (a copy of the stt-tts-vision stack with `TTS_URL` pointed at `kokoro-tts`; `lfm3-audio` remains for STT). Breeze TTS 2 and Step-Audio-EditX variants were deferred.
+
+## 2026-11-24 — Replay logged turns with another model, in a sandbox
+
+New `/models` page (model configurations: name, model, base URL, API key), a **Reasoning Model** column and **Replay of** link in `/logs`, and a `/replay/<turn>` screen that re-runs a turn's first message with a chosen model. The replay agent gets mock tools only (`whatsap/tools/replay/`), seeded from the original turn's logged tool results, so it cannot message, mail, write real files or run bash; its mock chat, files and mailbox are shown with six reusable components (`MockChat`, `MockFileList`, `MockFileView`, `MockInboxList`, `MockSentList`, `MockEmailView`). `turns` gained `reasoning_model` and `replay_of`; `agent.ts`/`named-agents.ts` now expose `buildDefaultAgent`/`buildNamedAgent` factories. Design: `docs/superpowers/specs/2026-11-24-log-replay-sandbox-design.md`; decision: `docs/architecture/adrs/2026-11-24-log-replay-sandbox.md`.
