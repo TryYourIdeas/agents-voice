@@ -2,7 +2,11 @@ import { describe, it, expect, beforeEach, vi } from "vitest";
 import { createAgent, tool, fakeModel } from "langchain";
 import { AIMessage, HumanMessage } from "@langchain/core/messages";
 import { z } from "zod";
-import { openLogsDb, resetLogsDb, loggedTurn, logEvent, contentToText, cap, capJson, currentTurnId } from "./agent-logs.ts";
+import { openLogsDb, resetLogsDb, loggedTurn, logEvent, contentToText, cap, capJson, currentTurnId, reasoningModelName } from "./agent-logs.ts";
+import { DatabaseSync } from "node:sqlite";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
 import { agentLogsMiddleware } from "../middleware/agent-logs-middleware.ts";
 
 function db() {
@@ -111,5 +115,38 @@ describe("agentLogsMiddleware with a real agent loop", () => {
         expect(JSON.parse(ev[0].data).tool_calls[0]).toMatchObject({ name: "echo", args: { text: "hi" } });
         expect(ev[1]).toMatchObject({ name: "echo", tool_call_id: "call1", content: "echo:hi", status: "ok" });
         expect(ev[2].content).toBe("all done");
+    });
+});
+
+describe("replay columns", () => {
+    it("migrates an existing DB without replay columns", () => {
+        resetLogsDb();
+        const dir = fs.mkdtempSync(path.join(os.tmpdir(), "logs-"));
+        const file = path.join(dir, "old.db");
+        const old = new DatabaseSync(file);
+        old.exec("CREATE TABLE turns (id INTEGER PRIMARY KEY AUTOINCREMENT, parent_turn_id INTEGER, started_at TEXT NOT NULL, agent TEXT NOT NULL, source TEXT NOT NULL, model TEXT, user_message TEXT, status TEXT NOT NULL DEFAULT 'running')");
+        old.close();
+        const d = openLogsDb(file)!;
+        const cols = (d.prepare("PRAGMA table_info(turns)").all() as any[]).map((c) => c.name);
+        expect(cols).toContain("replay_of");
+        expect(cols).toContain("reasoning_model");
+        const tables = (d.prepare("SELECT name FROM sqlite_master WHERE type='table'").all() as any[]).map((t) => t.name);
+        expect(tables).toEqual(expect.arrayContaining(["replay_messages", "replay_files", "replay_emails"]));
+        resetLogsDb();
+    });
+    it("stores reasoning_model and replay_of", async () => {
+        await loggedTurn({ agent: "default", userMessage: "orig" }, async () => "ok");
+        const original = rows("SELECT id FROM turns")[0].id;
+        await loggedTurn({ agent: "default", userMessage: "hi", reasoningModel: "m1", replayOf: original }, async () => "ok");
+        const r = rows("SELECT reasoning_model, replay_of FROM turns WHERE replay_of IS NOT NULL")[0];
+        expect(r).toEqual({ reasoning_model: "m1", replay_of: original });
+    });
+    it("defaults reasoning_model from the environment", async () => {
+        await loggedTurn({ agent: "default", userMessage: "hi" }, async () => "ok");
+        expect(rows("SELECT reasoning_model FROM turns")[0].reasoning_model).toBe(reasoningModelName());
+    });
+    it("reasoningModelName prefers REASONING_MODEL_NAME", () => {
+        expect(reasoningModelName({ REASONING_MODEL_NAME: "lfm", ANTHROPIC_MODEL: "x" } as any)).toBe("lfm");
+        expect(reasoningModelName({ ANTHROPIC_MODEL: "x" } as any)).toBe("x");
     });
 });

@@ -12,7 +12,7 @@ import { agentLogsMiddleware } from "./middleware/agent-logs-middleware.ts";
 import { fetchUrlGuardMiddleware } from "./middleware/fetch-url-guard-middleware.ts";
 import { toolBudgetMiddleware } from "./middleware/tool-budget-middleware.ts";
 import { toolErrorMiddleware } from "./middleware/tool-error-middleware.ts";
-import { loggedTurn } from "./lib/agent-logs.ts";
+import { loggedTurn, reasoningModelName } from "./lib/agent-logs.ts";
 import { extractText, agentRecursionLimit, isRecursionLimitError, RECURSION_LIMIT_REPLY } from "./util.ts";
 import { createSkillMiddleware, createLogModelCallMiddleware } from "langchain-agent-kit";
 
@@ -66,7 +66,7 @@ function getDefaultAgent(deviceName: string): ReturnType<typeof createAgent> {
 
 export function callAgent(deviceName: string, content: MessageContent, localThreadId: string, opts?: { recursionLimit?: number }): Promise<string> {
     return loggedTurn(
-        { device: deviceName, chatId: localThreadId, threadId: `device:${deviceName}:${localThreadId}`, agent: "default", model: process.env.ANTHROPIC_MODEL, userMessage: content },
+        { device: deviceName, chatId: localThreadId, threadId: `device:${deviceName}:${localThreadId}`, agent: "default", model: process.env.ANTHROPIC_MODEL, reasoningModel: reasoningModelName(), userMessage: content },
         () => runDefaultAgent(deviceName, content, localThreadId, opts),
         RECURSION_LIMIT_REPLY
     );

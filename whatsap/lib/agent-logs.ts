@@ -64,7 +64,51 @@ CREATE INDEX IF NOT EXISTS idx_events_turn ON events(turn_id);
 CREATE INDEX IF NOT EXISTS idx_turns_started ON turns(started_at);
 CREATE INDEX IF NOT EXISTS idx_turns_parent ON turns(parent_turn_id);
 CREATE INDEX IF NOT EXISTS idx_events_tool ON events(kind, name);
+-- Sandbox state of a replay (see lib/replay/): what the mock chat, file system and mailbox ended up holding.
+CREATE TABLE IF NOT EXISTS replay_messages (
+    turn_id INTEGER NOT NULL REFERENCES turns(id),
+    seq     INTEGER NOT NULL,
+    ts      TEXT NOT NULL,
+    kind    TEXT NOT NULL,                 -- reply | audio
+    text    TEXT,
+    PRIMARY KEY (turn_id, seq)
+);
+CREATE TABLE IF NOT EXISTS replay_files (
+    turn_id INTEGER NOT NULL REFERENCES turns(id),
+    path    TEXT NOT NULL,
+    content TEXT,
+    origin  TEXT NOT NULL,                 -- seeded | written
+    PRIMARY KEY (turn_id, path)
+);
+CREATE TABLE IF NOT EXISTS replay_emails (
+    turn_id         INTEGER NOT NULL REFERENCES turns(id),
+    folder          TEXT NOT NULL,         -- inbox | sent
+    uid             INTEGER NOT NULL,
+    from_addr       TEXT,
+    to_addr         TEXT,
+    subject         TEXT,
+    date            TEXT,
+    body            TEXT,
+    in_reply_to_uid INTEGER,
+    PRIMARY KEY (turn_id, folder, uid)
+);
 `;
+
+// Columns added after the first release: older DBs get them via ALTER TABLE when opened.
+const TURN_COLUMNS: [string, string][] = [
+    ["replay_of", "INTEGER REFERENCES turns(id)"],
+    ["reasoning_model", "TEXT"],
+];
+
+function migrate(d: DatabaseSync): void {
+    const have = new Set((d.prepare("PRAGMA table_info(turns)").all() as { name: string }[]).map((c) => c.name));
+    for (const [name, ddl] of TURN_COLUMNS) if (!have.has(name)) d.exec(`ALTER TABLE turns ADD COLUMN ${name} ${ddl}`);
+}
+
+/** The real model behind the agent. ANTHROPIC_MODEL is only a placeholder on llama-server, so prefer REASONING_MODEL_NAME. */
+export function reasoningModelName(env: NodeJS.ProcessEnv = process.env): string {
+    return env.REASONING_MODEL_NAME || env.ANTHROPIC_MODEL || "";
+}
 
 let db: DatabaseSync | null | undefined;
 
@@ -76,6 +120,7 @@ export function openLogsDb(file = logsDbPath()): DatabaseSync | null {
         const d = new DatabaseSync(file);
         d.exec("PRAGMA journal_mode = WAL; PRAGMA busy_timeout = 5000;");
         d.exec(SCHEMA);
+        migrate(d);
         db = d;
     } catch (e: any) {
         console.warn(`[agent-logs] disabled, could not open ${file}: ${e?.message ?? e}`);
@@ -159,6 +204,10 @@ export interface TurnMeta {
     threadId?: string;
     agent: string;
     model?: string;
+    /** the real model name (see reasoningModelName); defaults to it */
+    reasoningModel?: string;
+    /** id of the turn this one replays */
+    replayOf?: number;
     userMessage: unknown;
 }
 
@@ -192,10 +241,10 @@ async function recordTurn(meta: TurnMeta, fn: () => Promise<string>, recursionLi
             Number(
                 d
                     .prepare(
-                        `INSERT INTO turns (parent_turn_id, started_at, device, chat_id, thread_id, agent, source, model, user_message)
-                         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
+                        `INSERT INTO turns (parent_turn_id, started_at, device, chat_id, thread_id, agent, source, model, user_message, reasoning_model, replay_of)
+                         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
                     )
-                    .run(parent ?? null, new Date(started).toISOString(), meta.device ?? null, meta.chatId ?? null, meta.threadId ?? null, meta.agent, source, meta.model ?? null, user).lastInsertRowid
+                    .run(parent ?? null, new Date(started).toISOString(), meta.device ?? null, meta.chatId ?? null, meta.threadId ?? null, meta.agent, source, meta.model ?? null, user, meta.reasoningModel ?? (reasoningModelName() || null), meta.replayOf ?? null).lastInsertRowid
             )
     );
     if (turnId === undefined) return fn();
