@@ -15,6 +15,7 @@ import { agentLogsMiddleware } from "./middleware/agent-logs-middleware.ts";
 import { fetchUrlGuardMiddleware } from "./middleware/fetch-url-guard-middleware.ts";
 import { toolBudgetMiddleware } from "./middleware/tool-budget-middleware.ts";
 import { toolErrorMiddleware } from "./middleware/tool-error-middleware.ts";
+import type { AgentOverrides } from "./lib/agent-overrides.ts";
 import { loggedTurn, reasoningModelName } from "./lib/agent-logs.ts";
 import { extractText, agentRecursionLimit, isRecursionLimitError, RECURSION_LIMIT_REPLY } from "./util.ts";
 import {
@@ -118,14 +119,10 @@ const namedOnlyTools = [yahooGetNewEmailsTool, yahooDraftEmailTool, postQueuePro
 // Keyed by `${deviceName}:${agentName}` — one instance per device per agent.
 const namedAgents = new Map<string, ReturnType<typeof createAgent>>();
 
-function getNamedAgent(deviceName: string, agentName: string): ReturnType<typeof createAgent> {
+export function buildNamedAgent(deviceName: string, agentName: string, o: AgentOverrides = {}): ReturnType<typeof createAgent> {
     if (!AGENT_NAME_RE.test(agentName)) {
         throw new Error(`Invalid agent name '${agentName}'.`);
     }
-
-    const cacheKey = `${deviceName}:${agentName}`;
-    const cached = namedAgents.get(cacheKey);
-    if (cached) return cached;
 
     const header = readAgentHeader(agentName);
     if (!header) {
@@ -135,24 +132,27 @@ function getNamedAgent(deviceName: string, agentName: string): ReturnType<typeof
     // allowed-tools restricts this agent to a named subset of sharedTools
     // (see agent.md's frontmatter); omitted means no restriction, matching
     // every named agent's behavior before this field existed.
-    const tools = header.allowedTools
-        ? [...sharedTools, listAvailableAgentsTool, ...namedOnlyTools].filter((t) => header.allowedTools!.includes(t.name))
-        : sharedTools;
+    // A replay passes its own (mock) tool list instead: only those can be used, filtered by allowed-tools.
+    const tools = o.tools
+        ? header.allowedTools ? o.tools.filter((t) => header.allowedTools!.includes(t.name)) : o.tools
+        : header.allowedTools
+          ? [...sharedTools, listAvailableAgentsTool, ...namedOnlyTools].filter((t) => header.allowedTools!.includes(t.name))
+          : sharedTools;
 
     // Layers this agent's own skills (agents/<name>/skills/*/SKILL.md, if
     // any) on top of the global ones in ./skills — further restricted to
     // allowed-skills if the agent declares it.
     const agentSkillsDir = path.join(AGENTS_DIR, agentName, "skills");
-    const namedAgent = createAgent({
-        model: model,
+    return createAgent({
+        model: o.model ?? model,
         tools,
-        checkpointer: sharedCheckpointer,
+        checkpointer: o.checkpointer ?? sharedCheckpointer,
         systemPrompt: new SystemMessage(header.content),
         middleware: [
             createSkillMiddleware("./skills", { extraDirs: [agentSkillsDir], allowedSkills: header.allowedSkills }),
             createMemoryMiddleware(`devices/${deviceName}/memory`),
             datetimeMiddleware,
-            visionRoutingMiddleware,
+            ...(o.replay ? [] : [visionRoutingMiddleware]),
             logModelCallMiddleware,
             messageTypeTraceMiddleware,
             agentLogsMiddleware,
@@ -163,7 +163,13 @@ function getNamedAgent(deviceName: string, agentName: string): ReturnType<typeof
             toolErrorMiddleware,
         ],
     });
+}
 
+function getNamedAgent(deviceName: string, agentName: string): ReturnType<typeof createAgent> {
+    const cacheKey = `${deviceName}:${agentName}`;
+    const cached = namedAgents.get(cacheKey);
+    if (cached) return cached;
+    const namedAgent = buildNamedAgent(deviceName, agentName);
     namedAgents.set(cacheKey, namedAgent);
     return namedAgent;
 }
