@@ -26,6 +26,8 @@ export class Sandbox {
     files = new Map<string, string>();
     /** paths that came from the original log (everything else was written by the replayed agent) */
     seededPaths = new Set<string>();
+    /** directories created explicitly (files imply their parents) */
+    dirs = new Set<string>();
     inbox: SandboxEmail[] = [];
     sent: SandboxEmail[] = [];
     messages: SandboxMessage[] = [];
