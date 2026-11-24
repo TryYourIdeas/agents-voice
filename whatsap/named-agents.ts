@@ -66,7 +66,7 @@ function parseAgentFile(fileText: string, fallbackName: string): AgentHeader {
     return { name, description, allowedTools, allowedSkills, content };
 }
 
-function readAgentHeader(agentName: string): AgentHeader | undefined {
+export function readAgentHeader(agentName: string): AgentHeader | undefined {
     const agentMdPath = path.join(AGENTS_DIR, agentName, "agent.md");
     if (!existsSync(agentMdPath)) return undefined;
     return parseAgentFile(readFileSync(agentMdPath, "utf-8"), agentName);
@@ -96,7 +96,7 @@ export function listAgentHeaders(): { name: string; description: string }[] {
 // Needed because list_directory became device-scoped (see
 // lib/device-scoped-path.ts) and can no longer point at the global ./agents
 // directory the way task-scheduler's agent.md previously relied on.
-const listAvailableAgentsTool = tool(
+export const listAvailableAgentsTool = tool(
     async () => {
         const headers = listAgentHeaders();
         if (headers.length === 0) {
