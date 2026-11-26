@@ -210,3 +210,7 @@ New `/models` page (model configurations: name, model, base URL, API key), a **R
 ## 2026-11-24 — Replays can delegate to named agents
 
 `delegate_to_agent` now works inside a replay: the named agent runs with its own `agent.md` prompt, skills and `allowed-tools`, the replay model and the sandbox's mock tools, logged as a child turn. `agent-delegation-middleware.ts` exposes `createAgentDelegationMiddleware(runAgent)`; new `lib/replay/delegate.ts`; mocks for `post_queue_prompt`/`post_run_pipeline`; `list_available_agents` stays real. Fixed the replay mock named `my_list_directory` — the real tool is `list_directory`, so named agents allowed it lost it. A test now checks every named agent's allowed-tools exist in a replay.
+
+## 2026-11-25 — Replays copy the files the original run accessed
+
+Before a replay starts, `whatsap/lib/replay/copy-accessed.ts` copies the files the original turn (and its child turns) read, plus the files of directories it listed or checked, from the device's real directory (`devices/<device>/`) into the sandbox, so the replayed agent sees complete files instead of the truncated slice kept in the log. Files the original run wrote itself are not copied (logged content is kept); files missing on disk fall back to the logged content. Limits: 1 MB per file (`REPLAY_COPY_MAX_FILE_BYTES`), 100 files per listed directory; PDFs are copied as extracted text. Read-only on disk.

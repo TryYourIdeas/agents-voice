@@ -9,6 +9,8 @@ import { getModelConfig, effectiveApiKey, type ModelConfig } from "../model-conf
 import { Sandbox } from "./sandbox.ts";
 import { seedFromEvents, type SeedEvent } from "./seed.ts";
 import { createReplayDelegate } from "./delegate.ts";
+import { copyAccessedFiles } from "./copy-accessed.ts";
+import path from "node:path";
 
 export class ReplayError extends Error {
     status: number;
@@ -31,6 +33,8 @@ export interface ReplayDeps {
     getConfig?: (id: number) => ModelConfig | undefined;
     buildAgent?: (o: { agentName: string; device: string; config: ModelConfig; sandbox: Sandbox }) => Promise<any>;
     invoke?: (ctx: ReplayContext) => Promise<string>;
+    /** root holding devices/<device> (default "devices", relative to the cwd) */
+    devicesDir?: string;
 }
 
 const DEBUG = Boolean(process.env.NUXT_ADD_DEBUG_LOGS) || Boolean(process.env.DEBUG_REPLAY);
@@ -119,12 +123,15 @@ export async function startReplay(
     if (!original.user_message) throw new ReplayError(`Turn ${original.id} has no user message to replay.`, 400);
 
     const sandbox = new Sandbox();
-    const seeded = seedFromEvents(treeEvents(original.id));
+    const events = treeEvents(original.id);
+    const seeded = seedFromEvents(events);
     for (const [p, c] of seeded.files) {
         sandbox.files.set(p, c);
         sandbox.seededPaths.add(p);
     }
     sandbox.inbox.push(...seeded.inbox);
+    // Copy the files the original run accessed from the device's real directory (complete, not the logged slice).
+    await copyAccessedFiles({ events, device: original.device, deviceRoot: path.join(deps.devicesDir ?? "devices", original.device), sandbox });
 
     const buildAgent = deps.buildAgent ?? defaultBuildAgent;
     const invoke = deps.invoke ?? defaultInvoke;
