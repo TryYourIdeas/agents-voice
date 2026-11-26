@@ -1,0 +1,9 @@
+{
+  "name": "whatsap-agent-scripts",
+  "private": true,
+  "type": "module",
+  "description": "Root-level helper scripts (list-models.ts, test-anthropic.ts)",
+  "dependencies": {
+    "@anthropic-ai/sdk": "^1.11.0"
+  }
+}
