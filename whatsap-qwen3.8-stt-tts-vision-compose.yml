@@ -1,38 +1,20 @@
-# Standalone stack for the WhatsApp bot: `whatsap` (the LangChain/Anthropic
-# agent bridged to WhatsApp Web), `stt` (Whisper speech-to-text, used to
-# transcribe voice notes sent to the "@jlabrada71" chat before forwarding
-# them to the agent — see index.ts), `plantuml-renderer` (renders PlantUML
-# diagrams to images — see ../plantuml-renderer/README.md — used by the
-# system-design-coach agent's render_diagram tool to show diagrams), and
-# `llama-server` (local OpenAI/Ollama-compatible inference, exposed at :5050
-# for future local-model wiring; the agent itself talks to the real
-# Anthropic API by default via ANTHROPIC_*), and `ai-extension-server` (the
-# backend for the ai-extension Chrome extension's side-panel chat — see
-# ai-extension/CLAUDE.md — pointed at llama-server via the same
-# .env.whatsap-llama file whatsap uses, so it needs no real Anthropic API
-# key either).
+# Qwen3.8 + LFM3 STT + Kokoro TTS variant: reasoning AND vision run on an external Anthropic-compatible
+# server (LM Studio-style) on the HOST at port 1235, model qwen/qwen3.8-27b, via POST /v1/messages.
+# No llama-server containers. Speech-to-text stays lfm3-audio; spoken replies come from kokoro-tts.
 #
-# llama-server here builds from llama-server/Dockerfile.gpu (the GPU-enabled
-# variant, using llama-gpu/'s CUDA-linked binaries) rather than the CPU-only
-# llama-server/Dockerfile used by the root docker-compose.yml — see that
-# Dockerfile.gpu for the CUDA runtime version it needs. Both llama-server and
-# stt reserve the GPU here, on top of whatever the main docker-compose.yml's
-# tts/stt/qwen-stt services are already using if run concurrently on the
-# same GPU — see docs/user-guides/config.md's GPU memory budget notes.
+# Requirements: the server on the host must listen on 0.0.0.0:1235 (not only 127.0.0.1) so containers can reach it
+# as host.docker.internal:1235, and the model must be loaded/loadable (first request may take ~1 min).
 #
 # Usage:
-#   docker compose -f docker-compose-whatsap.yml up --build
+#   docker compose -f whatsap-qwen3.8-stt-tts-vision-compose.yml up --build
 #
-# First run needs an interactive terminal to scan the WhatsApp Web QR code
-# for each configured device (see whatsap/devices/*/device.md):
-#   docker compose -f docker-compose-whatsap.yml run --rm whatsap
-# (or `up` in the foreground, not detached, and watch the logs — each
-# device's QR is prefixed with its device name). The authenticated session
-# then persists in ./whatsap/devices/<name>/session across restarts.
+# First run needs an interactive terminal to scan the WhatsApp Web QR code for each configured device
+# (see whatsap/devices/*/device.md):
+#   docker compose -f whatsap-qwen3.8-stt-tts-vision-compose.yml run --rm whatsap
+# The authenticated session then persists in ./whatsap/devices/<name>/session across restarts.
 #
-# `name:` gives this stack its own Compose project so it won't collide with
-# containers started from the default docker-compose.yml.
-name: agents-voice-whatsap
+# `name:` gives this stack its own Compose project so it won't collide with other stacks.
+name: agents-voice-whatsap-qwen38-stt-kokoro-vision
 
 services:
   whatsap:
@@ -68,16 +50,39 @@ services:
       - ../generate-posts:/data/generate-posts
     environment:
       AGENT_LOGS_DB: /data/logs/agent-logs.db
+      # Model configurations managed in the UI (/models); read by id when a logged turn is replayed.
+      MODEL_CONFIGS_DB: /data/logs/model-configs.db
+      # External model server on the host (see header). The Anthropic SDK appends /v1/messages.
+      ANTHROPIC_BASE_URL: ${QWEN_BASE_URL:-http://host.docker.internal:1235}
+      ANTHROPIC_MODEL: ${QWEN_MODEL:-qwen/qwen3.8-27b}
+      ANTHROPIC_API_KEY: ${QWEN_API_KEY:-not-needed}
+      # Real name of the reasoning model, stored in each log row's "Reasoning Model" field.
+      REASONING_MODEL_NAME: ${QWEN_MODEL:-qwen/qwen3.8-27b}
       GENERATE_POSTS_DIR: /data/generate-posts
-      STT_URL: http://stt:8001
+      # Small local models can loop on web_search; fail fast instead of 100 steps.
+      AGENT_RECURSION_LIMIT: "60"
+      AGENT_TIMEZONE: ${AGENT_TIMEZONE:-America/Sao_Paulo}
+      # Enables [trace] message-type logging and other debug tracing.
+      NUXT_ADD_DEBUG_LOGS: "true"
+      STT_URL: http://lfm3-audio:8010
+      VOICE_REPLY: "true"
+      TTS_URL: http://kokoro-tts:8020
+      TTS_VOICE: female
+      VIDEO_FRAMES: "6"
+      # Turns that carry images/video frames go to the vision model (same server, /v1/messages);
+      # all other text goes to the reasoning model. See lib/vision-routing.ts.
+      VISION_BASE_URL: ${QWEN_BASE_URL:-http://host.docker.internal:1235}
+      VISION_MODEL: ${QWEN_VISION_MODEL:-qwen/qwen3.8-27b}
       PLANTUML_URL: http://plantuml-renderer:3000
       # Comma-separated chat display names (as shown by "@ai list channels")
       # whose voice notes get transcribed and forwarded to the agent — see
       # index.ts. Audio sent to any other chat is left untouched.
       STT_ALLOWED_CHATS: "@jlabrada71,+55 48 8458-8841"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     depends_on:
-      - llama-server
-      - stt
+      - lfm3-audio
+      - kokoro-tts
       - plantuml-renderer
     # QR code login (first run) is printed to stdout and needs a TTY.
     stdin_open: true
@@ -90,28 +95,22 @@ services:
       dockerfile: ai-extension/server/Dockerfile
     image: ai-extension-server:latest
     env_file:
-      # Same file whatsap/llama-server use — ANTHROPIC_BASE_URL already
-      # points at http://llama-server:5050 (the Docker service DNS name),
-      # with placeholder ANTHROPIC_API_KEY/ANTHROPIC_MODEL, so no real
-      # Anthropic API key is needed to run this locally.
+      # Shared with whatsap; the ANTHROPIC_* values are overridden below to use the host model server.
       - ./.env.whatsap-llama
     ports:
       - "4100:4100"
     environment:
+      ANTHROPIC_BASE_URL: ${QWEN_BASE_URL:-http://host.docker.internal:1235}
+      ANTHROPIC_MODEL: ${QWEN_MODEL:-qwen/qwen3.8-27b}
+      ANTHROPIC_API_KEY: ${QWEN_API_KEY:-not-needed}
       # Matches ai-extension/extension/manifest.config.ts's pinned dev key's
       # derived ID — see docs/user-guides/config.md. Override both together
       # if you swap in your own manifest key.
       EXTENSION_ID: kbemgcmgfjcmpfhfcpfgfpanaommfgco
       PORT: "4100"
       MAX_CONTEXT_CHARS: "20000"
-    depends_on:
-      # condition: service_healthy (not the plain list form) so this only
-      # starts once llama-server's own healthcheck passes — llama.cpp
-      # returns 503 "Loading model" on /health (and on chat requests) for a
-      # while after the container starts, until the GGUF finishes loading.
-      # Without this, an early chat request can hit that window and fail.
-      llama-server:
-        condition: service_healthy
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:4100/health"]
       interval: 30s
@@ -136,6 +135,7 @@ services:
       NUXT_WHATSAP_API_URL: http://whatsap:4001
       NUXT_NEW_DEVICES_DIR: /data/new-devices
       NUXT_AGENT_LOGS_DB: /data/logs/agent-logs.db
+      NUXT_MODEL_CONFIGS_DB: /data/logs/model-configs.db
     volumes:
       # Shared with whatsap's own ./whatsap/new-devices mount: the "Add Device"
       # form creates a device by writing a file here (whatsap/device-onboarding.ts).
@@ -147,19 +147,18 @@ services:
       - whatsap
     restart: unless-stopped
 
-  stt:
-    build: ./whisper-speech-to-text
-    image: whisper-stt:latest
+  lfm3-audio:
+    build: ./lfm3-audio
+    image: lfm3-audio:latest
     ports:
-      - "8001:8001"
+      - "8010:8010"
     volumes:
       - ./models:/models
     environment:
-      WHISPER_MODEL: openai/whisper-large-v3-turbo
-      WHISPER_DEVICE: cuda:0
-      WHISPER_ATTN: sdpa
-      WHISPER_CHUNK_LENGTH_S: "30"
-      WHISPER_BATCH_SIZE: "8"
+      # Q4_K_M GGUF run via llama.cpp (see lfm3-audio/Dockerfile).
+      LFM3_AUDIO_FILE: LFM3-Audio-2B-Q4_K_M.gguf
+      LFM3_AUDIO_NGL: "99"
+      NUXT_ADD_DEBUG_LOGS: "${NUXT_ADD_DEBUG_LOGS:-false}"
     deploy:
       resources:
         reservations:
@@ -168,11 +167,40 @@ services:
               count: all
               capabilities: [gpu]
     healthcheck:
-      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:8001/health').status==200 else 1)"]
+      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:8010/health').status==200 else 1)"]
       interval: 30s
       timeout: 5s
       retries: 5
       start_period: 300s
+    restart: unless-stopped
+
+  kokoro-tts:
+    build: ./kokoro-tts
+    image: kokoro-tts:latest
+    ports:
+      - "8020:8020"
+    volumes:
+      - ./models:/models
+    environment:
+      # Voices used for TTS_VOICE=female|male (English); other languages use the
+      # per-language defaults in kokoro-tts/app.py. Any Kokoro voice id also works.
+      KOKORO_VOICE_FEMALE: ${KOKORO_VOICE_FEMALE:-af_heart}
+      KOKORO_VOICE_MALE: ${KOKORO_VOICE_MALE:-am_michael}
+      KOKORO_SPEED: ${KOKORO_SPEED:-1.0}
+      NUXT_ADD_DEBUG_LOGS: "${NUXT_ADD_DEBUG_LOGS:-false}"
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8020/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 120s
     restart: unless-stopped
 
   plantuml-renderer:
@@ -203,30 +231,4 @@ services:
       timeout: 5s
       retries: 3
       start_period: 10s
-    restart: unless-stopped
-
-  llama-server:
-    build:
-      context: .
-      dockerfile: llama-server/Dockerfile.gpu
-    image: llama-server-qwen3.5-gpu:latest
-    env_file:
-      # Shares MAX_TOKENS with the whatsap service — read by
-      # start-llama-server-gpu.sh's -n flag (see that script).
-      - ./.env.whatsap-llama
-    ports:
-      - "5050:5050"
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              count: all
-              capabilities: [gpu]
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:5050/health"]
-      interval: 30s
-      timeout: 5s
-      retries: 5
-      start_period: 60s
     restart: unless-stopped
