@@ -111,6 +111,9 @@ agent backed by Anthropic's Messages API (or the local `llama-server`, see `conf
   tools, and skills:
   - `math-coach` — Socratic math tutor (guides toward the answer instead of stating it).
   - `story-coach` — storytelling coach for practicing/improving personal stories.
+  - `enem-essay-coach` — argumentative-essay coach that scores essays with the official ENEM criteria
+    (five competencies, six levels each, 0–1000, zero-score checks) and gives concrete feedback;
+    can also propose practice themes. Reach it with `@ai @agent enem-essay-coach <essay or request>`.
   - `system-design-coach` — plays interviewer for system design practice, with diagrams
     (via `plantuml-renderer`) and structured feedback.
   - `critical-thinking-analyst` — fact-checks claims, evaluates argument structure, flags
