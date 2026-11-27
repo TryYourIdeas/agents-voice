@@ -1,5 +1,5 @@
-# Qwen3.8 + LFM3 STT + Kokoro TTS variant: reasoning AND vision run on an external Anthropic-compatible
-# server (LM Studio-style) on the HOST at port 1235, model qwen/qwen3.8-27b, via POST /v1/messages.
+# Qwen LFM3 STT + Kokoro TTS variant: reasoning AND vision run on an external Anthropic-compatible
+# server (LM Studio-style) on the HOST at port 1235, model qwen/qwen3.6-35b-a3b, via POST /v1/messages.
 # No llama-server containers. Speech-to-text stays lfm3-audio; spoken replies come from kokoro-tts.
 #
 # Requirements: the server on the host must listen on 0.0.0.0:1235 (not only 127.0.0.1) so containers can reach it
@@ -54,10 +54,10 @@ services:
       MODEL_CONFIGS_DB: /data/logs/model-configs.db
       # External model server on the host (see header). The Anthropic SDK appends /v1/messages.
       ANTHROPIC_BASE_URL: ${QWEN_BASE_URL:-http://host.docker.internal:1235}
-      ANTHROPIC_MODEL: ${QWEN_MODEL:-qwen/qwen3.8-27b}
+      ANTHROPIC_MODEL: ${QWEN_MODEL:-qwen/qwen3.6-35b-a3b}
       ANTHROPIC_API_KEY: ${QWEN_API_KEY:-not-needed}
       # Real name of the reasoning model, stored in each log row's "Reasoning Model" field.
-      REASONING_MODEL_NAME: ${QWEN_MODEL:-qwen/qwen3.8-27b}
+      REASONING_MODEL_NAME: ${QWEN_MODEL:-qwen/qwen3.6-35b-a3b}
       GENERATE_POSTS_DIR: /data/generate-posts
       # Small local models can loop on web_search; fail fast instead of 100 steps.
       AGENT_RECURSION_LIMIT: "60"
@@ -72,7 +72,7 @@ services:
       # Turns that carry images/video frames go to the vision model (same server, /v1/messages);
       # all other text goes to the reasoning model. See lib/vision-routing.ts.
       VISION_BASE_URL: ${QWEN_BASE_URL:-http://host.docker.internal:1235}
-      VISION_MODEL: ${QWEN_VISION_MODEL:-qwen/qwen3.8-27b}
+      VISION_MODEL: ${QWEN_VISION_MODEL:-qwen/qwen3.6-35b-a3b}
       PLANTUML_URL: http://plantuml-renderer:3000
       # Comma-separated chat display names (as shown by "@ai list channels")
       # whose voice notes get transcribed and forwarded to the agent — see
@@ -101,7 +101,7 @@ services:
       - "4100:4100"
     environment:
       ANTHROPIC_BASE_URL: ${QWEN_BASE_URL:-http://host.docker.internal:1235}
-      ANTHROPIC_MODEL: ${QWEN_MODEL:-qwen/qwen3.8-27b}
+      ANTHROPIC_MODEL: ${QWEN_MODEL:-qwen/qwen3.6-35b-a3b}
       ANTHROPIC_API_KEY: ${QWEN_API_KEY:-not-needed}
       # Matches ai-extension/extension/manifest.config.ts's pinned dev key's
       # derived ID — see docs/user-guides/config.md. Override both together
